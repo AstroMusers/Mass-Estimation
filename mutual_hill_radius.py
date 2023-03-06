@@ -32,10 +32,12 @@ hill_data = hill_data.dropna()
 hill_data = np.log(hill_data)
 
 plt.figure(3, figsize=(3.5,4.5))
-plt.hist(hill_data, bins=50, histtype="step", color="grey")
+plt.hist(hill_data, bins=50, histtype="step", color="0.3")
 plt.xlabel("Mutual Hill Sphere Radius (AU)")
 plt.ylabel("Density")
 plt.xlim(right=0)
+plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)
+plt.minorticks_on()
 plt.show()
 
 

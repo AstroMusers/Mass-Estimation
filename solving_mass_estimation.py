@@ -25,6 +25,7 @@ logD_dataframe = pd.read_csv("logD.csv")
 logD_series = logD_dataframe.squeeze()
 logD = logD_series.values.tolist()
 
+#malhotra mass
 mu_tilde = []
 for i in range(len(K)):
     mu_log = (3*(logD[i] - K_log[i])) + np.log(3)
@@ -34,14 +35,15 @@ mu_tilde_data = pd.Series(mu_tilde)
 
 planet_list = []
 for i in range(len(gamma)):
-    planet_min_mu = gamma[i] * (1+gamma[i])**(-1) * mu_tilde[i]
-    planet_max_mu = (1+gamma[i])**(-1) * mu_tilde[i]
+    planet_min_mu = gamma[i] * (1+gamma[i])**(-1) * mu_tilde[i] * (const.M_earth.value/const.M_sun.value)
+    planet_max_mu = (1+gamma[i])**(-1) * mu_tilde[i] * (const.M_earth.value/const.M_sun.value)
     planet_list.append(planet_min_mu)
     planet_list.append(planet_max_mu)
 planet_list_log = np.log(planet_list)
 
 datafile = pd.read_csv("a_total.csv", skiprows=60)
 
+#Otegi et al. mass
 t_mu_data = []
 for i in range (len(datafile)):
     if datafile["pl_dens"][i] > 3.3:
@@ -54,6 +56,7 @@ t_mu_series = pd.Series(t_mu_data)
 t_mu_log = np.log(t_mu_series)
 t_mu_log = t_mu_log.dropna()
 
+#empirical mass data
 e_mu_data = []
 for i in range(len(datafile)):
     e_mu = (datafile["pl_bmasse"][i]*const.M_earth.value)/(datafile["st_mass"][i]*const.M_sun.value)
@@ -83,19 +86,23 @@ emass_lin = np.linspace(np.min(e_mu_log), np.max(e_mu_log), 2061)
 
 plt.figure(1, figsize=(7.2, 4.5))
 #experimental mass plot
-plt.plot(emass_lin, scp.norm.pdf(emass_lin, loc=mean_fit_emass, scale=std_fit_emass), color=sns.color_palette('Set2')[0], label="NASA Archive")
+plt.plot(emass_lin, scp.norm.pdf(emass_lin, loc=mean_fit_emass, scale=std_fit_emass), color="0.3", label="Empirical Data", )
 #malhotra mass plot
-plt.plot(x, scp.norm.pdf(x, loc=mean_fit_pla, scale=std_fit_pla), color=sns.color_palette('Set2')[2], label="Malhotra")
+plt.plot(x, scp.norm.pdf(x, loc=mean_fit_pla, scale=std_fit_pla), label="Malhotra", color="0.3", linestyle="dashdot")
 #new article mass plot
-plt.plot(tmass_lin, scp.norm.pdf(tmass_lin, loc=mean_fit_tmass, scale=std_fit_tmass), color=sns.color_palette('Set2')[6], label="Otegi et al.")
+plt.plot(tmass_lin, scp.norm.pdf(tmass_lin, loc=mean_fit_tmass, scale=std_fit_tmass), color="0.3", label="Otegi et al.", linestyle='dotted')
 plt.legend()
 plt.xlabel("log\u03BC")
 plt.ylabel("PDF(log\u03BC)")
+plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=4)
+plt.minorticks_on()
+
 plt.figure(2, figsize=(7.2, 4.5))
-plt.scatter(e_mu_series,diff_series,color=sns.color_palette('Set2')[0], s=6)
-plt.xlabel("NASA Archive \u03BC")
+plt.scatter(e_mu_series, diff_series, color="0.3", marker="+")
+plt.xlabel("Empirical \u03BC")
 plt.xlim(right=0.025)
 plt.ylabel("Difference of Data")
+plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=4)
+plt.minorticks_on()
 
-plt.legend()
 plt.show()
