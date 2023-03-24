@@ -22,18 +22,12 @@ d_data = pd.Series(d_list)
 wanted_data = d_data[d_data > 0]
 w = np.log(wanted_data)
 
-w.to_csv("logD.csv", index=False, header=True)
-
-[mean, std] = stats.norm.fit(w)
-x = np.linspace(np.min(w), np.max(w), 1129)
-
 plt.figure(1, figsize=(3.5, 4.5))
-plt.hist(w, density=True, bins=50, histtype="step", color="0.3")
-plt.plot(x, stats.norm.pdf(x, mean, std), color="0.2", linestyle="dashdot", linewidth=1)
-plt.xlabel("Orbital Spacing")
-plt.ylabel("Density")
+plt.hist(w, bins=50, histtype="step", color="0.3")
+plt.xlabel("ln D")
+plt.ylabel("Number of Exoplanet Pairs")
 plt.xlim(-2.5, 1)
-plt.xticks(range(-2,2))
+plt.xticks(range(-2, 2))
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)
 plt.minorticks_on()
 plt.show()
