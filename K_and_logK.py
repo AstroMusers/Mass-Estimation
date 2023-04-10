@@ -26,7 +26,7 @@ for i in range(0, len(datafile)-1):
         K_list.append(K)
 K_data = pd.Series(K_list)
 K_data = K_data[K_data > 0]
-logK = np.log(K_data)
+logK = np.log10(K_data)
 
 planet_masses_list = []
 for i in range (0,len(datafile)-1):
@@ -54,13 +54,12 @@ for i in range(0, len(datafile)-2):
         K12_list.append(K)
 K12_data = pd.Series(K12_list)
 K12_data = K12_data[K12_data > 0]
-
-logK12 = np.log(K12_data)
+logK12 = np.log10(K12_data)
 
 plt.figure(2, figsize=(3.5,4.5))
 plt.hist(logK, density=True, bins=50, histtype="step", color="red")
 plt.hist(logK12, density=True, bins=50, histtype="step", color="blue")
-plt.xlabel("lnK")
+plt.xlabel("logK")
 plt.ylabel("Number of Exoplanet Pairs")
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)
 plt.minorticks_on()
