@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from scipy import stats as scp
-import seaborn as sns
 import astropy.constants as const
 import matplotlib.patches as ptc
 
