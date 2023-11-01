@@ -4,8 +4,8 @@ import numpy as np
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "a_total.csv"
-datafile = pd.read_csv(filename, skiprows=60)
+filename = "only_transit_data_28062023.csv"
+datafile = pd.read_csv(filename, skiprows=177)
 
 planet_masses = datafile["pl_bmasse"] 
 star_masses = datafile["st_mass"] 
@@ -30,9 +30,9 @@ hill_data = np.log10(hill_data)
 
 plt.figure(3, figsize=(3.5,4.5))
 plt.hist(hill_data, bins=50, histtype="step", color="0.3")
-plt.xlabel("Mutual Hill Radius [AU]")
+plt.xlabel("$\log_{10} R_{H_{i,i+1}}$ [AU]")
 plt.ylabel("Number of Exoplanet Pairs", labelpad=0.1)
-plt.xlim(right=1)
+plt.xlim(right=-0.5)
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)
 plt.minorticks_on()
 plt.show()

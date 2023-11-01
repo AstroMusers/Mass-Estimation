@@ -5,8 +5,8 @@ import astropy.constants as ast
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "a_total.csv"
-datafile = pd.read_csv(filename, skiprows=60)
+filename = "only_transit_data_28062023.csv"
+datafile = pd.read_csv(filename, skiprows=177)
 
 el1 = 0
 el2 = 0

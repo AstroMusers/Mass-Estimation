@@ -4,8 +4,8 @@ import numpy as np
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "a_total.csv"
-datafile = pd.read_csv(filename, skiprows=60)
+filename = "only_transit_data_28062023.csv"
+datafile = pd.read_csv(filename, skiprows=177)
 
 planet_masses = datafile["pl_bmasse"] 
 star_masses = datafile["st_mass"] 
@@ -56,10 +56,10 @@ K12_data = pd.Series(K12_list)
 K12_data = K12_data[K12_data > 0]
 logK12 = np.log10(K12_data)
 
-plt.figure(2, figsize=(3.5,4.5))
+plt.figure(2, figsize=(4.5,4.5))
 plt.hist(logK, density=True, bins=50, histtype="step", color="red")
 plt.hist(logK12, density=True, bins=50, histtype="step", color="blue")
-plt.xlabel("logK")
+plt.xlabel("$log_{10}K$")
 plt.ylabel("Number of Exoplanet Pairs")
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)
 plt.minorticks_on()

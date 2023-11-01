@@ -4,8 +4,8 @@ import numpy as np
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "a_total.csv"
-datafile = pd.read_csv(filename, skiprows=60)
+filename = "only_transit_data_28062023.csv"
+datafile = pd.read_csv(filename, skiprows=177)
 
 d_list = []
 for i in range(0,len(datafile)-1):
@@ -21,7 +21,7 @@ w = np.log10(wanted_data)
 
 plt.figure(1, figsize=(3.5, 4.5))
 plt.hist(w, bins=50, histtype="step", color="0.3")
-plt.xlabel("logD")
+plt.xlabel("$log_{10}D$")
 plt.ylabel("Number of Exoplanet Pairs")
 plt.xlim(-1.1, 0.5)
 plt.xticks()
