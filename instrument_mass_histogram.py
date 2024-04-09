@@ -11,23 +11,22 @@ datafile = pd.read_csv(filename, skiprows=177)
 
 b = 0
 masses_our_work = [0] * 1745
+logD_dataframe = pd.read_csv("logD.csv")
+logD_series = logD_dataframe.squeeze()
+logD = logD_series.values.tolist()
 while b != 1000:
 
     #K-calculation
-    logK = scp.norm.rvs(size=872, loc=1.32, scale=0.31)
+    logK = scp.norm.rvs(size=len(logD), loc=1.32, scale=0.31)
 
     #gamma-calculation
     gamma = []
     a = 0
-    while a != 872:
+    while a != len(logD):
         calc_data_gamma = scp.uniform.rvs()
         if 0 < calc_data_gamma < 1:
             gamma.append(calc_data_gamma)
             a += 1
-
-    logD_dataframe = pd.read_csv("logD.csv")
-    logD_series = logD_dataframe.squeeze()
-    logD = logD_series.values.tolist()
 
     #our work - mass tilde
     mu_tilde = []
@@ -64,21 +63,6 @@ final_masses = np.log10(final_masses)
 final_masses = pd.Series(final_masses)
 final_masses = final_masses.dropna()
 
-# Otegi et al. mass
-t_mu_data = []
-t_mass_data = []
-for i in range(len(datafile) - 1):
-    if datafile["pl_dens"][i] > 3.3:
-        mass = 0.9 * ((datafile["pl_rade"][i]) ** 3.45)
-    else:
-        mass = 1.74 * ((datafile["pl_rade"][i]) ** 1.58)
-    mu = mass / (datafile["st_mass"][i])
-    t_mass_data.append(mass)
-    t_mu_data.append(mu)
-t_mass_log = np.log10(t_mass_data)
-t_mass_log = pd.Series(t_mass_log)
-t_mass_log = t_mass_log.dropna()
-
 # NEA mass data
 e_mu_data = []
 e_mass_data = []
@@ -90,20 +74,6 @@ for i in range(len(datafile) - 1):
 e_mass_log = np.log10(e_mass_data)
 e_mass_log = pd.Series(e_mass_log)
 e_mass_log = e_mass_log.dropna()
-
-plt.figure(1, figsize=(7.2, 4.5))
-# experimental mass plot
-plt.hist(e_mass_log, color="red", label="NASA Exoplanet Archive, 2023", histtype="step", bins=50)
-# our mass plot
-plt.hist(final_masses, label="This Work", color="lime", histtype="step", bins=50)
-# otegi mass plot
-plt.hist(t_mass_log, color="blue", label="Otegi et al. 2020", histtype="step", bins=50)
-plt.legend()
-plt.xlabel("$log_{10}M/M_{\oplus}$")
-plt.ylabel("Number of Planets")
-plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=4)
-plt.minorticks_on()
-plt.show()
 
 datafile = datafile.fillna(0)  # some planets do not have mass values, they are replaced with 0s
 

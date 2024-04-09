@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import scipy.stats as st
 
 plt.rcParams.update({'font.size': 8})
 
@@ -27,6 +28,8 @@ for i in range(0, len(datafile)-1):
 K_data = pd.Series(K_list)
 K_data = K_data[K_data > 0]
 logK = np.log10(K_data)
+
+print("Mean of logK of NASA is", np.mean(logK), "and standard deviation is", np.std(logK))
 
 planet_masses_list = []
 for i in range (0,len(datafile)-1):
@@ -56,12 +59,23 @@ K12_data = pd.Series(K12_list)
 K12_data = K12_data[K12_data > 0]
 logK12 = np.log10(K12_data)
 
-plt.figure(2, figsize=(4.5,4.5))
+print("Mean of logK from mass equation is", np.mean(logK12), "and standard deviation is", np.std(logK12))
+
+res1 = st.shapiro(logK)
+print("Normality test logK result for dataset is", res1.statistic)
+
+res2 = st.shapiro(logK12)
+print("Normality test logK12 result for dataset is", res2.statistic)
+
+
+
+plt.figure(2, figsize=(3.5, 4.5))
 plt.hist(logK, density=True, bins=50, histtype="step", color="red")
 plt.hist(logK12, density=True, bins=50, histtype="step", color="blue")
 plt.xlabel("$log_{10}K$")
 plt.ylabel("Number of Exoplanet Pairs")
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)
 plt.minorticks_on()
+plt.tight_layout()
 plt.show()
 
