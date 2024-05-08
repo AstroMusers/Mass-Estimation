@@ -11,8 +11,11 @@ import pandas as pd
 datafile = pd.read_csv("logD.csv")
 logD_value = datafile.iloc[0][0]
 
+
 def log_prior(theta):
-    logK, gamma, logD = theta
+    
+    gamma, tilde = theta
+    
     meanD = -0.30041
     stdD = 0.2357
     meanK = 1.2886
@@ -30,19 +33,34 @@ def log_prior(theta):
     else:
         return a + b + c
 
-def log_likelihood(theta):
-    logK, gamma, logD = theta
-    mu_tilde = (10 ** (3 * (logD_value - logK) + np.log10(3)))
-    mu_upper = (1 + gamma) ** (-1) * mu_tilde
-    model = mu_upper * ast.M_sun.value / ast.M_earth.value
-    return np.sum(model) #to sample from posterior
-    #return 0 # to sample from the prior
+def log_likelihood(theta, 
+                   # observed orbital separation for the system
+                   osep_observed=None, \
+                   ):
+    gamma, tilde = theta
+    
+    #mu_tilde = (10 ** (3 * (logD_value - logK) + np.log10(3)))
+    #mu_upper = (1 + gamma) ** (-1) * mu_tilde
 
-def log_probability(theta): #log_posterior olarak değiştir
-    lp = log_prior(theta)
-    if not np.isfinite(lp):
+    #model = mu_upper * ast.M_sun.value / ast.M_earth.value
+    logK = my_func(gamma, tilde, osep_observed)
+    
+    likelihood = 1. - sigmoid(K-K0)
+    log_likelihood = np.log(likelihood)
+
+    return log_likelihood
+
+
+def log_posterior(theta):
+
+    log_prior = log_prior(theta)
+    
+    if not np.isfinite(log_prior):
         return -np.inf
-    return lp + log_likelihood(theta)
+    else:
+        log_likelihood = log_likelihood(theta, data=data)
+        log_posterior = log_prior + log_likelihood
+        return log_posterior
 
 ndim = 3
 nwalkers = 2000
