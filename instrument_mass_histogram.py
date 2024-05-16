@@ -7,7 +7,7 @@ import astropy.constants as const
 plt.rcParams.update({'font.size': 8})
 
 filename = "only_transit_data_28062023.csv"
-datafile = pd.read_csv(filename, skiprows=177)
+datafile = pd.read_csv(filename, skiprows=202)
 
 b = 0
 masses_our_work = [0] * 1745

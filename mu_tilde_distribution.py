@@ -9,7 +9,7 @@ import astropy.constants as ast
 plt.rcParams.update({'font.size': 8})
 
 filename = "only_transit_data_28062023.csv"
-datafile = pd.read_csv(filename, skiprows=177)
+datafile = pd.read_csv(filename, skiprows=202)
 
 mu_tilde_list = []
 for i in range(len(datafile)-1):
@@ -22,7 +22,9 @@ for i in range(len(datafile)-1):
         pass
 mu_tilde_array = np.array(mu_tilde_list)
 log10_mu_tilde_array = np.log10(mu_tilde_array)
+
 nan_places = np.argwhere(np.isnan(mu_tilde_array))
+
 print("Mean of mu_tilde", np.nanmean(log10_mu_tilde_array))
 print("Standard Deviation of mu_tilde", np.nanvar(log10_mu_tilde_array))
 

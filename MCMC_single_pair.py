@@ -87,17 +87,20 @@ sampler.reset()
 sampler.run_mcmc(state_1, 250, progress=True)
 flat_samples = sampler.get_chain(flat=True)
 
-labels = ["log_mutilde", "gamma"]
-truths = [-4.31921754762478, 0.5]
-fig = corner.corner(flat_samples, labels=labels, truths=truths)
-plt.show()
-
 flat_samples = flat_samples.T
 
 mu_tilde = 10**(flat_samples[0])
 st_mass = 0.5 * ast.M_sun.value / ast.M_earth.value #solar mass turned to earth mass units
 masses = (1 + flat_samples[1])**(-1) * mu_tilde * st_mass
-K = 10**log_K(mu_tilde, logD_value)
+K = 10**log_K(flat_samples[0], logD_value)
+
+flat_samples = np.vstack((np.vstack((flat_samples,masses)),K))
+corner_samples = flat_samples.T
+
+labels = ["log_mutilde", "gamma", "upper_mass", "orbital_seperation"]
+truths = [-4.31921754762478, 0.5, np.nanmean(masses), np.nanmean(K)]
+fig = corner.corner(corner_samples, labels=labels, truths=truths)
+plt.show()
 
 plt.figure(2)
 plt.scatter(K, masses, color="Blue", s=7)

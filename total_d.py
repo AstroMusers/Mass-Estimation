@@ -6,7 +6,7 @@ import scipy.stats as st
 plt.rcParams.update({'font.size': 8})
 
 filename = "only_transit_data_28062023.csv"
-datafile = pd.read_csv(filename, skiprows=177)
+datafile = pd.read_csv(filename, skiprows=202)
 
 ##### total D data #####
 
