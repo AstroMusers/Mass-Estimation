@@ -9,7 +9,7 @@ import pandas as pd
 filename = "only_transit_data_28062023.csv"
 datafile = pd.read_csv(filename, skiprows=202)
 
-number_of_systems = 4
+number_of_systems = 6
 a = 0
 i = 0
 passed_systems = 0
@@ -26,6 +26,7 @@ K_array = np.zeros((num_steps * nwalkers,))
 mean_K_list = []
 mean_masses_list = []
 which_systems = []
+planet_number = []
 
 while a != number_of_systems:
 
@@ -43,6 +44,9 @@ while a != number_of_systems:
 
     row_number += 1 #to look at the next system at next loop
     logD_array = np.log(np.array(d_list))
+
+    if len(logD_array) == 0:
+        passed_systems += 1
 
     for j in range(len(logD_array)):
 
@@ -145,16 +149,87 @@ while a != number_of_systems:
         truths = [0.5, -4.3041661629482, np.nanmean(masses), np.nanmean(K)]
         fig = corner.corner(corner_samples, labels=labels, truths=truths)
         print(f"System Hostname = {datafile["hostname"][i]}")
-        plt.show()
+        #plt.show()
+        which_systems.append(datafile["hostname"][i])
+        planet_number.append(j + 1)  ##first planet, second planet, etc.
 
     a += 1
     i += row_number
 
-    if len(logD_array) == 0:
-        passed_systems += 1
-        which_systems.append(0)
-    else:
-        which_systems.append(1)
+##### #####
 
 print(f"Passed System Count = {passed_systems}")
 print(f"Systems With More Than One Planet = {which_systems}")
+print(f"Planet Indexes = {planet_number}")
+
+### total mass figure ###
+
+mass_array_list = mass_array.tolist()
+mass_array_merged = sum(mass_array_list, [])
+mass_array_merged = mass_array_merged[250000:]
+log_mass = np.log10(mass_array_merged)
+
+plt.figure("Total Mass")
+plt.hist(log_mass, bins=100)
+plt.xlabel("Mass [Earth Mass]")
+plt.ylabel("Occurance Number")
+
+### violin plot ###
+
+mass_array = mass_array[1:]
+categories = np.array(which_systems)
+subcategories = np.array(planet_number)
+data = pd.DataFrame({'Category': categories, 'Value': mass_array_list[1:], 'Subcategory': subcategories})
+
+unique_categories = data['Category'].unique()
+unique_subcategories = data['Subcategory'].unique()
+
+fig, ax = plt.subplots()
+colors = plt.cm.viridis(np.linspace(0, 1, len(unique_subcategories)))
+
+def adjacent_values(vals, q1, q3):
+    upper_adjacent_value = q3 + (q3 - q1) * 1.5
+    upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
+
+    lower_adjacent_value = q1 - (q3 - q1) * 1.5
+    lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
+    return lower_adjacent_value, upper_adjacent_value
+
+
+for i, category in enumerate(unique_categories):
+    for j, subcategory in enumerate(unique_subcategories):
+        subset = data[(data['Category'] == category) & (data['Subcategory'] == subcategory)]
+        subset_values = subset['Value'].values
+
+        if len(subset_values) > 0:
+            subset_values = np.concatenate(subset_values).astype(np.float64)
+
+            try:
+                parts = ax.violinplot(subset_values, positions=[i + j * 0.15 - 0.15], vert=False, showmeans=False,
+                                      showmedians=False, showextrema=False)
+            except ValueError:
+                pass
+
+            for pc in parts['bodies']:
+                pc.set_facecolor(colors[j])
+                pc.set_edgecolor('black')
+                pc.set_alpha(0.7)
+
+            quartile1, medians, quartile3 = np.percentile(subset_values, [25, 50, 75])
+            whiskers = adjacent_values(np.sort(subset_values), quartile1, quartile3)
+
+            ax.scatter([medians], [i + j * 0.15 - 0.15], marker='o', color='white', s=25, zorder=3)
+            ax.hlines(i + j * 0.15 - 0.15, quartile1, quartile3, color='k', linestyle='-', lw=5)
+            ax.hlines(i + j * 0.15 - 0.15, whiskers[0], whiskers[1], color='k', linestyle='-', lw=1)
+
+# Customize the plot
+ax.set_yticks(np.arange(len(unique_categories)))
+ax.set_yticklabels(unique_categories)
+ax.set_xlabel('Maximum Mass [Earth Mass]')
+ax.set_ylabel('The Star of The System')
+
+# Add a legend
+for j, subcategory in enumerate(unique_subcategories):
+    ax.scatter([], [], color=colors[j], label=f'Interval of Planets {subcategory} - {subcategory+1}')
+ax.legend()
+plt.show()
