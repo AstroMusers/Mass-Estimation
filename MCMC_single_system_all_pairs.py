@@ -9,7 +9,7 @@ import pandas as pd
 filename = "only_transit_data_28062023.csv"
 datafile = pd.read_csv(filename, skiprows=202)
 
-number_of_systems = 6
+number_of_systems = 2
 a = 0
 i = 0
 passed_systems = 0
@@ -67,15 +67,17 @@ while a != number_of_systems:
             mean_gamma = 0.5
             std_gamma = 0.3
             norm_gamma = 1. / (gamma * std_gamma * np.sqrt(2. * np.pi))
-            norm_mutilde = 1. / (10. ** (log_mutilde) * std_mutilde * np.sqrt(2. * np.pi))
+            norm_mutilde = 1. / (log_mutilde * std_mutilde * np.sqrt(2. * np.pi))
 
             log_mutilde_dist = norm_mutilde * np.exp(-(log_mutilde - mean_mutilde) ** 2. / (2. * std_mutilde ** 2.))
-            gamma_dist = norm_gamma * np.exp(-(np.log10(gamma) - mean_gamma) ** 2. / (2. * std_gamma ** 2.))
+            gamma_dist = norm_gamma * np.exp(-(gamma - mean_gamma) ** 2. / (2. * std_gamma ** 2.))
+
+            total_log_prior = np.log10(log_mutilde_dist) + np.log10(gamma_dist)
 
             if gamma_dist <= 0 or gamma_dist >= 1 or gamma != float:
                 return -np.inf
-            else:
-                return log_mutilde_dist + gamma_dist
+
+            return total_log_prior
 
         def log_likelihood(theta,
                            # observed orbital separation for the system
@@ -88,7 +90,7 @@ while a != number_of_systems:
             K0 = np.sqrt(12)
 
             likelihood = 1. - sigmoid(K - K0)
-            loglikelihood = np.log(likelihood)
+            loglikelihood = np.log10(likelihood)
             return loglikelihood
 
 
