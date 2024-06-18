@@ -13,13 +13,13 @@ import pandas as pd
 filename = "only_transit_data_28062023.csv"
 datafile = pd.read_csv(filename, skiprows=202)
 
-number_of_systems = 10
+number_of_systems = 5
 a = 0
 row_counter = 0
 passed_systems = 0
 
 #ndim = 2
-nwalkers = 1000
+nwalkers = 100
 burn_steps = 50
 num_steps = 250
 
@@ -56,7 +56,7 @@ while a != number_of_systems:
         def log_prior(theta):
             mean_mutilde = -4.3041661629482
             std_mutilde = 0.30148352295199915
-            mean_gamma = 0.5
+            mean_gamma = 1
             std_gamma = 0.3
 
             total_log_prior = 0
@@ -65,53 +65,49 @@ while a != number_of_systems:
                 gamma = theta[i]
                 log_mutilde = theta[i + 1]
 
-                norm_gamma = 1. / (gamma * std_gamma * np.sqrt(2. * np.pi))
-                norm_mutilde = 1. / (log_mutilde * std_mutilde * np.sqrt(2. * np.pi))
+                log_mutilde_dist = scp.norm.logpdf(log_mutilde, mean_mutilde, std_mutilde)
+                gamma_dist = scp.norm.logpdf(gamma, mean_gamma, std_gamma)
 
-                log_mutilde_dist = norm_mutilde * np.exp(-(log_mutilde - mean_mutilde) ** 2. / (2. * std_mutilde ** 2.))
-                gamma_dist = norm_gamma * np.exp(-(gamma - mean_gamma) ** 2. / (2. * std_gamma ** 2.))
+                total_log_prior += log_mutilde_dist + gamma_dist
 
-                if gamma_dist <= 0 or gamma_dist >= 1 or not isinstance(gamma, float):
+                if gamma <= 0 or gamma >= 1:
                     return -np.inf
-
-                total_log_prior += np.log10(log_mutilde_dist) + np.log10(gamma_dist)
 
             return total_log_prior
 
-        def log_likelihood(theta,
-                           # observed orbital separation for the system
-                           osep_observed=logD_array):
-
+        def log_likelihood(theta, osep_observed):
             total_loglikelihood = 0
-
             osep_counter = 0
+
             for i in range(0, len(theta), 2):
                 gamma = theta[i]
                 log_mutilde = theta[i + 1]
 
+                if i >= 2:
+                    prev_gamma = theta[i - 2]
+                    prev_log_mutilde = theta[i - 1]
+                    prev_mu_tilde = 10 ** prev_log_mutilde
+                    mu_tilde = 10 ** log_mutilde
+
+                    if (1 + gamma) ** (-1) * mu_tilde != (1 + prev_gamma) ** (-1) * prev_gamma * prev_mu_tilde:
+                        return -np.inf
+
                 logK = log_K(log_mutilde, osep_observed[osep_counter])
-                K = 10. ** (logK)
+                K = 10. ** logK
                 K0 = np.sqrt(12)
                 likelihood = 1. - sigmoid(K - K0)
                 loglikelihood = np.log10(likelihood)
                 total_loglikelihood += loglikelihood
                 osep_counter += 1
 
-                try:
-                    if (1+gamma)**(-1) * mu_tilde != (1+theta[i+2])**(-1) * theta[i+2] * theta[i+3]:
-                        total_loglikelihood = total_loglikelihood * (-np.inf)
-                except:
-                    pass
-
             return total_loglikelihood
-
 
         def log_posterior(theta):
             logprior = log_prior(theta)
             if not np.isfinite(logprior):
                 return -np.inf
             else:
-                loglikelihood = log_likelihood(theta)
+                loglikelihood = log_likelihood(theta, logD_array)
                 logposterior = logprior + loglikelihood
                 return logposterior
 
@@ -120,7 +116,7 @@ while a != number_of_systems:
         labels = []
         truths = []
 
-        gamma_pos_array = np.zeros(nwalkers)
+        pos_array = np.zeros(nwalkers)
 
         for i in range(len(logD_array)):
             gamma = []
@@ -131,25 +127,18 @@ while a != number_of_systems:
                     gamma.append(calc_data_gamma)
                     b += 1
             gamma = np.array(gamma)
-            gamma_pos_array = np.vstack((gamma_pos_array,gamma))
+            pos_array = np.vstack((pos_array,gamma))
             labels.append(f"gamma{i+1}")
             truths.append(0.5)
 
-        gamma_pos_array = np.transpose(gamma_pos_array[1:])
-
-        log_mu_tilde_pos_array = np.zeros(nwalkers)
-
-        for i in range(len(logD_array)):
             log_mu_tilde = scp.norm.rvs(size=nwalkers, loc=-4.3041661629482, scale=0.30148352295199915)
-            log_mu_tilde_pos_array = np.vstack((log_mu_tilde_pos_array, log_mu_tilde))
+            pos_array = np.vstack((pos_array, log_mu_tilde))
             labels.append(f"log_mu_tilde{i+1}")
             truths.append(-4.3041661629482)
 
-        log_mu_tilde_pos_array = np.transpose(log_mu_tilde_pos_array[1:])
+        pos = np.transpose(pos_array[1:])
 
         ##### end #####
-
-        pos = np.hstack((gamma_pos_array,log_mu_tilde_pos_array))
         ndim = len(logD_array)*2
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior)
@@ -163,18 +152,34 @@ while a != number_of_systems:
 
         flat_samples = flat_samples.T
     
-        mu_tilde = 10**(flat_samples[1])
-        gamma = flat_samples[0]
-        st_mass = datafile["st_mass"][row_counter] * ast.M_sun.value / ast.M_earth.value #solar mass turned to earth mass units
-        high_masses = (1 + gamma)**(-1) * mu_tilde * st_mass #result is in earth mass units
-        low_masses = (1 + gamma)**(-1) * gamma * mu_tilde * st_mass
-        log_high_masses = np.log10(high_masses)
-        log_low_masses = np.log10(low_masses)
+        gamma = np.zeros((1,nwalkers*num_steps))
+        log_mu_tilde = np.zeros((1,nwalkers*num_steps))
+        for i in range(len(flat_samples)):
+            if i < len(flat_samples)/2:
+                gamma = np.vstack((gamma,flat_samples[i]))
+            else:
+                log_mu_tilde = np.vstack((log_mu_tilde,flat_samples[i]))
+        gamma = gamma[1:]
+        log_mu_tilde = log_mu_tilde[1:]
+        mu_tilde = 10**log_mu_tilde
 
-        plt.figure("Masses")
-        plt.hist(log_high_masses, histtype="step", color="blue", bins=100)
-        plt.hist(log_low_masses, histtype="step", color="red", bins=100)
-        plt.show()
+        high_masses = np.zeros((1,nwalkers*num_steps))
+        low_masses = np.zeros((1,nwalkers*num_steps))
+        st_mass = datafile["st_mass"][
+                      row_counter] * ast.M_sun.value / ast.M_earth.value  # solar mass turned to earth mass units
+        for i in range(len(log_mu_tilde)):
+            h_mass = (1+gamma[i])**(-1) * mu_tilde[i] * st_mass
+            l_mass = (1+gamma[i])**(-1) * mu_tilde[i] * gamma[i] * st_mass
+            high_masses = np.vstack((high_masses,h_mass))
+            low_masses = np.vstack((low_masses,l_mass))
+        high_masses = high_masses[1:]
+        low_masses = low_masses[1:]
+
+        if len(high_masses) > 1:
+            plt.figure("middle_planet")
+            plt.hist(high_masses[0], bins=100, histtype="step", color="red")
+            plt.hist(low_masses[1], bins=100, histtype="step", color="blue")
+            plt.show()
 
     a += 1
     row_counter += row_number

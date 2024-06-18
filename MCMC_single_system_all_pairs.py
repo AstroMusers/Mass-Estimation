@@ -9,13 +9,13 @@ import pandas as pd
 filename = "only_transit_data_28062023.csv"
 datafile = pd.read_csv(filename, skiprows=202)
 
-number_of_systems = 2
+number_of_systems = 5
 a = 0
 i = 0
 passed_systems = 0
 
 ndim = 2
-nwalkers = 1000
+nwalkers = 100
 burn_steps = 50
 num_steps = 250
 
@@ -64,17 +64,15 @@ while a != number_of_systems:
             gamma, log_mutilde = theta
             mean_mutilde = -4.3041661629482
             std_mutilde = 0.30148352295199915
-            mean_gamma = 0.5
+            mean_gamma = 1
             std_gamma = 0.3
-            norm_gamma = 1. / (gamma * std_gamma * np.sqrt(2. * np.pi))
-            norm_mutilde = 1. / (log_mutilde * std_mutilde * np.sqrt(2. * np.pi))
 
-            log_mutilde_dist = norm_mutilde * np.exp(-(log_mutilde - mean_mutilde) ** 2. / (2. * std_mutilde ** 2.))
-            gamma_dist = norm_gamma * np.exp(-(gamma - mean_gamma) ** 2. / (2. * std_gamma ** 2.))
+            log_mutilde_dist = scp.norm.logpdf(log_mutilde, mean_mutilde, std_mutilde)
+            gamma_dist = scp.norm.logpdf(gamma, mean_gamma, std_gamma)
 
-            total_log_prior = np.log10(log_mutilde_dist) + np.log10(gamma_dist)
+            total_log_prior = log_mutilde_dist + gamma_dist
 
-            if gamma_dist <= 0 or gamma_dist >= 1 or gamma != float:
+            if gamma <= 0 or gamma >= 1:
                 return -np.inf
 
             return total_log_prior
@@ -151,7 +149,7 @@ while a != number_of_systems:
         truths = [0.5, -4.3041661629482, np.nanmean(masses), np.nanmean(K)]
         fig = corner.corner(corner_samples, labels=labels, truths=truths)
         print(f"System Hostname = {datafile["hostname"][i]}")
-        #plt.show()
+        plt.show()
         which_systems.append(datafile["hostname"][i])
         planet_number.append(j + 1)  ##first planet, second planet, etc.
 
