@@ -79,18 +79,14 @@ while a != number_of_systems:
             total_loglikelihood = 0
             osep_counter = 0
 
+            high_masses = []
+            low_masses = []
+            st_mass = datafile["st_mass"][row_counter] * ast.M_sun.value / ast.M_earth.value
+
             for i in range(0, len(theta), 2):
                 gamma = theta[i]
                 log_mutilde = theta[i + 1]
-
-                if i >= 2:
-                    prev_gamma = theta[i - 2]
-                    prev_log_mutilde = theta[i - 1]
-                    prev_mu_tilde = 10 ** prev_log_mutilde
-                    mu_tilde = 10 ** log_mutilde
-
-                    if (1 + gamma) ** (-1) * mu_tilde != (1 + prev_gamma) ** (-1) * prev_gamma * prev_mu_tilde:
-                        return -np.inf
+                mu_tilde = 10**log_mutilde
 
                 logK = log_K(log_mutilde, osep_observed[osep_counter])
                 K = 10. ** logK
@@ -98,6 +94,19 @@ while a != number_of_systems:
                 likelihood = 1. - sigmoid(K - K0)
                 loglikelihood = np.log10(likelihood)
                 total_loglikelihood += loglikelihood
+
+                h_mass = (1 + gamma) ** (-1) * mu_tilde * st_mass
+                l_mass = (1 + gamma) ** (-1) * mu_tilde * gamma * st_mass
+                high_masses.append(h_mass)
+                low_masses.append(l_mass)
+
+            if len(theta) >= 2:
+                for i in range(len(theta)):
+                    try:
+                        constraint_penalty = np.abs(high_masses[i] - low_masses[i+1])
+                        total_loglikelihood -= constraint_penalty
+                    except:
+                        pass
                 osep_counter += 1
 
             return total_loglikelihood
@@ -154,8 +163,9 @@ while a != number_of_systems:
     
         gamma = np.zeros((1,nwalkers*num_steps))
         log_mu_tilde = np.zeros((1,nwalkers*num_steps))
+
         for i in range(len(flat_samples)):
-            if i < len(flat_samples)/2:
+            if i % 2 == 0:
                 gamma = np.vstack((gamma,flat_samples[i]))
             else:
                 log_mu_tilde = np.vstack((log_mu_tilde,flat_samples[i]))
@@ -167,6 +177,7 @@ while a != number_of_systems:
         low_masses = np.zeros((1,nwalkers*num_steps))
         st_mass = datafile["st_mass"][
                       row_counter] * ast.M_sun.value / ast.M_earth.value  # solar mass turned to earth mass units
+
         for i in range(len(log_mu_tilde)):
             h_mass = (1+gamma[i])**(-1) * mu_tilde[i] * st_mass
             l_mass = (1+gamma[i])**(-1) * mu_tilde[i] * gamma[i] * st_mass
@@ -177,87 +188,12 @@ while a != number_of_systems:
 
         if len(high_masses) > 1:
             plt.figure("middle_planet")
-            plt.hist(high_masses[0], bins=100, histtype="step", color="red")
-            plt.hist(low_masses[1], bins=100, histtype="step", color="blue")
+            plt.hist(high_masses[0], bins=100, histtype="step", color="red", label=r"High Mass Calculation of $\tilde{\mu}_{i}$")
+            plt.hist(low_masses[1], bins=100, histtype="step", color="blue", label=r"Low Mass Calculation of $\tilde{\mu}_{i+1}$")
+            plt.xlabel("Mass [Earth Mass]")
+            plt.ylabel("Planet Count")
+            plt.legend()
             plt.show()
 
     a += 1
     row_counter += row_number
-
-##### #####
-
-"""print(f"Passed System Count = {passed_systems}")
-print(f"Systems With More Than One Planet = {which_systems}")
-print(f"Planet Indexes = {planet_number}")
-
-### total mass figure ###
-
-mass_array_list = mass_array.tolist()
-mass_array_merged = sum(mass_array_list, [])
-mass_array_merged = mass_array_merged[250000:]
-log_mass = np.log10(mass_array_merged)
-
-plt.figure("Total Mass")
-plt.hist(log_mass, bins=100)
-plt.xlabel("Mass [Earth Mass]")
-plt.ylabel("Occurance Number")
-
-### violin plot ###
-
-mass_array = mass_array[1:]
-categories = np.array(which_systems)
-subcategories = np.array(planet_number)
-data = pd.DataFrame({'Category': categories, 'Value': mass_array_list[1:], 'Subcategory': subcategories})
-
-unique_categories = data['Category'].unique()
-unique_subcategories = data['Subcategory'].unique()
-
-fig, ax = plt.subplots()
-colors = plt.cm.viridis(np.linspace(0, 1, len(unique_subcategories)))
-
-def adjacent_values(vals, q1, q3):
-    upper_adjacent_value = q3 + (q3 - q1) * 1.5
-    upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
-
-    lower_adjacent_value = q1 - (q3 - q1) * 1.5
-    lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
-    return lower_adjacent_value, upper_adjacent_value
-
-
-for i, category in enumerate(unique_categories):
-    for j, subcategory in enumerate(unique_subcategories):
-        subset = data[(data['Category'] == category) & (data['Subcategory'] == subcategory)]
-        subset_values = subset['Value'].values
-
-        if len(subset_values) > 0:
-            subset_values = np.concatenate(subset_values).astype(np.float64)
-
-            try:
-                parts = ax.violinplot(subset_values, positions=[i + j * 0.15 - 0.15], vert=False, showmeans=False,
-                                      showmedians=False, showextrema=False)
-            except ValueError:
-                pass
-
-            for pc in parts['bodies']:
-                pc.set_facecolor(colors[j])
-                pc.set_edgecolor('black')
-                pc.set_alpha(0.7)
-
-            quartile1, medians, quartile3 = np.percentile(subset_values, [25, 50, 75])
-            whiskers = adjacent_values(np.sort(subset_values), quartile1, quartile3)
-
-            ax.scatter([medians], [i + j * 0.15 - 0.15], marker='o', color='white', s=25, zorder=3)
-            ax.hlines(i + j * 0.15 - 0.15, quartile1, quartile3, color='k', linestyle='-', lw=5)
-            ax.hlines(i + j * 0.15 - 0.15, whiskers[0], whiskers[1], color='k', linestyle='-', lw=1)
-
-# Customize the plot
-ax.set_yticks(np.arange(len(unique_categories)))
-ax.set_yticklabels(unique_categories)
-ax.set_xlabel('Maximum Mass [Earth Mass]')
-ax.set_ylabel('The Star of The System')
-
-# Add a legend
-for j, subcategory in enumerate(unique_subcategories):
-    ax.scatter([], [], color=colors[j], label=f'Interval of Planets {subcategory} - {subcategory+1}')
-ax.legend()
-plt.show()"""
