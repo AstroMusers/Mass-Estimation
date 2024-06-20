@@ -18,10 +18,6 @@ a = 0
 row_counter = 0
 passed_systems = 0
 
-#ndim = 2
-nwalkers = 100
-burn_steps = 50
-num_steps = 250
 
 while a != number_of_systems:
 
@@ -91,7 +87,7 @@ while a != number_of_systems:
                 logK = log_K(log_mutilde, osep_observed[osep_counter])
                 K = 10. ** logK
                 K0 = np.sqrt(12)
-                likelihood = 1. - sigmoid(K - K0)
+                likelihood = 1 - sigmoid(K - K0)
                 loglikelihood = np.log10(likelihood)
                 total_loglikelihood += loglikelihood
 
@@ -104,7 +100,8 @@ while a != number_of_systems:
                 for i in range(len(theta)):
                     try:
                         constraint_penalty = np.abs(high_masses[i] - low_masses[i+1])
-                        total_loglikelihood -= constraint_penalty
+                        loglikelihood2 = np.log10(constraint_penalty)
+                        total_loglikelihood -= loglikelihood2
                     except:
                         pass
                 osep_counter += 1
@@ -122,6 +119,11 @@ while a != number_of_systems:
 
         ##### mutilde and gamma samples #####
 
+        ndim = len(logD_array) * 2
+        nwalkers = 100
+        burn_steps = 50
+        num_steps = 250
+
         labels = []
         truths = []
 
@@ -137,29 +139,25 @@ while a != number_of_systems:
                     b += 1
             gamma = np.array(gamma)
             pos_array = np.vstack((pos_array,gamma))
-            labels.append(f"gamma{i+1}")
+            labels.append(fr"$\gamma_{i+1}$")
             truths.append(0.5)
 
             log_mu_tilde = scp.norm.rvs(size=nwalkers, loc=-4.3041661629482, scale=0.30148352295199915)
             pos_array = np.vstack((pos_array, log_mu_tilde))
-            labels.append(f"log_mu_tilde{i+1}")
+            labels.append(r"$\log{\tilde{\mu}}$" + fr"$_{i+1}$")
             truths.append(-4.3041661629482)
 
         pos = np.transpose(pos_array[1:])
 
         ##### end #####
-        ndim = len(logD_array)*2
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior)
         state_1 = sampler.run_mcmc(pos, burn_steps, progress=True)
         sampler.reset()
         sampler.run_mcmc(state_1, num_steps, progress=True)
-        flat_samples = sampler.get_chain(flat=True)
+        flat_samples_corner = sampler.get_chain(flat=True)
 
-        fig = corner.corner(flat_samples, labels=labels, truths=truths)
-        plt.show()
-
-        flat_samples = flat_samples.T
+        flat_samples = flat_samples_corner.T
     
         gamma = np.zeros((1,nwalkers*num_steps))
         log_mu_tilde = np.zeros((1,nwalkers*num_steps))
@@ -186,12 +184,30 @@ while a != number_of_systems:
         high_masses = high_masses[1:]
         low_masses = low_masses[1:]
 
+        log_high_masses = np.log10(high_masses)
+        log_low_masses = np.log10(low_masses)
+        flat_samples_corner = flat_samples
+        flat_samples_corner = np.vstack((flat_samples_corner, log_high_masses))
+        flat_samples_corner = np.vstack((flat_samples_corner, log_low_masses))
+        flat_samples_corner = flat_samples_corner.T
+        for i in range(len(high_masses)):
+            labels.append(r"$\log{M}$" + fr"$_{i+2}$" + r" ($\log{\tilde{\mu}}$" + fr"$_{i+1}$)")
+            truths.append(np.mean(log_high_masses[i]))
+        for i in range(len(low_masses)):
+            labels.append(r"$\log{M}$" + fr"$_{i+1}$" + r" ($\log{\tilde{\mu}}$" + fr"$_{i+1}$)")
+            truths.append(np.mean(log_low_masses[i]))
+
+        fig = corner.corner(flat_samples_corner, labels=labels, truths=truths)
+        fig.text(0.5, 0.95, "System Star : " + datafile["hostname"][row_counter], ha='center', va='center', fontsize=12)
+        plt.show()
+
         if len(high_masses) > 1:
             plt.figure("middle_planet")
-            plt.hist(high_masses[0], bins=100, histtype="step", color="red", label=r"High Mass Calculation of $\tilde{\mu}_{i}$")
-            plt.hist(low_masses[1], bins=100, histtype="step", color="blue", label=r"Low Mass Calculation of $\tilde{\mu}_{i+1}$")
+            plt.hist(high_masses[0], bins=100, histtype="step", color="red", label=r"Mass of the second planet from $\tilde{\mu}" + fr"_{1}$")
+            plt.hist(low_masses[1], bins=100, histtype="step", color="blue", label=r"Mass of the second planet from $\tilde{\mu}" + fr"_{2}$")
             plt.xlabel("Mass [Earth Mass]")
-            plt.ylabel("Planet Count")
+            plt.ylabel("Number of Samples")
+            plt.title("System Star : " + datafile["hostname"][row_counter])
             plt.legend()
             plt.show()
 
