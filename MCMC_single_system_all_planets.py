@@ -96,6 +96,8 @@ while a != number_of_systems:
                 high_masses.append(h_mass)
                 low_masses.append(l_mass)
 
+                osep_counter += 1
+
             if len(theta) >= 2:
                 for i in range(len(theta)):
                     try:
@@ -104,7 +106,7 @@ while a != number_of_systems:
                         total_loglikelihood -= loglikelihood2
                     except:
                         pass
-                osep_counter += 1
+
 
             return total_loglikelihood
 
@@ -175,7 +177,6 @@ while a != number_of_systems:
         low_masses = np.zeros((1,nwalkers*num_steps))
         st_mass = datafile["st_mass"][
                       row_counter] * ast.M_sun.value / ast.M_earth.value  # solar mass turned to earth mass units
-
         for i in range(len(log_mu_tilde)):
             h_mass = (1+gamma[i])**(-1) * mu_tilde[i] * st_mass
             l_mass = (1+gamma[i])**(-1) * mu_tilde[i] * gamma[i] * st_mass
@@ -189,26 +190,33 @@ while a != number_of_systems:
         flat_samples_corner = flat_samples
         flat_samples_corner = np.vstack((flat_samples_corner, log_high_masses))
         flat_samples_corner = np.vstack((flat_samples_corner, log_low_masses))
-        flat_samples_corner = flat_samples_corner.T
         for i in range(len(high_masses)):
-            labels.append(r"$\log{M}$" + fr"$_{i+2}$" + r" ($\log{\tilde{\mu}}$" + fr"$_{i+1}$)")
+            labels.append(r"$\log{M}$" + fr"$_{i+2}$" + r" ($\log{\tilde{\mu}}$" + fr"$_{i+1}$)" + r" [$M_{\oplus}$]")
             truths.append(np.mean(log_high_masses[i]))
         for i in range(len(low_masses)):
-            labels.append(r"$\log{M}$" + fr"$_{i+1}$" + r" ($\log{\tilde{\mu}}$" + fr"$_{i+1}$)")
+            labels.append(r"$\log{M}$" + fr"$_{i+1}$" + r" ($\log{\tilde{\mu}}$" + fr"$_{i+1}$) [$M_\oplus$]")
             truths.append(np.mean(log_low_masses[i]))
+        for i in range(len(logD_array)):
+            logK = log_K(log_mu_tilde, logD_array[i])
+            labels.append(fr"$\log K_{i+1}$")
+            truths.append(np.mean(logK[i]))
+        flat_samples_corner = np.vstack((flat_samples_corner, logK))
+        flat_samples_corner = flat_samples_corner.T
 
         fig = corner.corner(flat_samples_corner, labels=labels, truths=truths)
-        fig.text(0.5, 0.95, "System Star : " + datafile["hostname"][row_counter], ha='center', va='center', fontsize=12)
+        fig.text(0.5, 0.95, datafile["hostname"][row_counter], ha='center', va='center', fontsize=12)
+        plt.savefig(f"{datafile["hostname"][row_counter]}_corner_plot.pdf")
         plt.show()
 
         if len(high_masses) > 1:
             plt.figure("middle_planet")
             plt.hist(high_masses[0], bins=100, histtype="step", color="red", label=r"Mass of the second planet from $\tilde{\mu}" + fr"_{1}$")
             plt.hist(low_masses[1], bins=100, histtype="step", color="blue", label=r"Mass of the second planet from $\tilde{\mu}" + fr"_{2}$")
-            plt.xlabel("Mass [Earth Mass]")
+            plt.xlabel(r"Mass [$M_{\oplus}$]")
             plt.ylabel("Number of Samples")
-            plt.title("System Star : " + datafile["hostname"][row_counter])
+            plt.title(datafile["hostname"][row_counter])
             plt.legend()
+            plt.savefig("second_planet_mass.pdf")
             plt.show()
 
     a += 1
