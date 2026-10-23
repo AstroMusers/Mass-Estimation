@@ -30,7 +30,7 @@ hill_data = np.log10(hill_data)
 
 plt.figure(3, figsize=(3.5,4.5))
 plt.hist(hill_data, bins=50, histtype="step", color="0.3")
-plt.xlabel("$\log_{10} R_{H_{i,i+1}}$ [AU]")
+plt.xlabel(r"$\log_{10} R_{H_{i,i+1}}$ [AU]")
 plt.ylabel("Number of Exoplanet Pairs", labelpad=0.1)
 plt.xlim(right=-0.5)
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=3)

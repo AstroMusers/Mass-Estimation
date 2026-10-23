@@ -131,7 +131,7 @@ plt.hist(t_total_log, color="black", label="Transiting - Total", histtype="step"
 plt.hist(nt_total_log, color="red", label="Non-transiting - Total", histtype="step", bins=50)
 plt.hist(final_masses, color="lime", label="Our Work", histtype="step", bins=50)
 plt.legend()
-plt.xlabel("$log_{10}M/M_{\oplus}$")
+plt.xlabel(r"$log_{10}M/M_{\oplus}$")
 plt.ylabel("Number of Planets")
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=4)
 plt.minorticks_on()

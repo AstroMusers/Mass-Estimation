@@ -115,8 +115,8 @@ plt.hist(t_mass_log, color="blue", label="Otegi et al. 2020", bins=100, histtype
 plt.hist(malhotra_log_m_msun_data, color="red", label="Malhotra, 2015", bins=100, histtype="step", density=True)
 plt.hist(malhotra_log_m_msun_data2, bins=100, histtype="step", density=True)
 plt.legend()
-plt.xlabel("log$_{10}$ $M/M_{\oplus}$")
-plt.ylabel("PDF(log$_{10}$ $M/M_{\oplus}$)")
+plt.xlabel(r"log$_{10}$ $M/M_{\oplus}$")
+plt.ylabel(r"PDF(log$_{10}$ $M/M_{\oplus}$)")
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=4)
 plt.minorticks_on()
 

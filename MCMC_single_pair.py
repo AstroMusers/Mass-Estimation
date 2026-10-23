@@ -1,64 +1,31 @@
 import emcee
 import matplotlib.pyplot as plt
 import scipy.stats as scp
+from scipy.special import expit as sigmoid, log_expit
 import numpy as np
 import astropy.constants as ast
 import corner
 import pandas as pd
+from pathlib import Path
+from pairwise_model import log_K, log_prior, combine_log_posterior, orbital_log_likelihood
 
-datafile = pd.read_csv("logD.csv")
-logD_value = datafile.iloc[0][0]
-
-def log_K(log_mu_tilde,
-          # observed orbital separation for the system
-          log_osep_observed):
-    logK = log_osep_observed - (1/3) * log_mu_tilde + (1/3) * np.log10(3.)
-    return logK
-
-def sigmoid(x):
-    function = np.exp(x)/(np.exp(x) + 1)
-    return function
-
-def log_prior(theta):
-    gamma, log_mutilde = theta
-    mean_mutilde = -4.31921754762478
-    std_mutilde = 0.28778378882844535
-    mean_gamma = 0.5
-    std_gamma = 0.3
-    norm_gamma = 1. / (gamma * std_gamma * np.sqrt(2. * np.pi))
-    norm_mutilde = 1. / (10. ** (log_mutilde) * std_mutilde * np.sqrt(2. * np.pi))
-
-    log_mutilde_dist = norm_mutilde * np.exp(-(log_mutilde - mean_mutilde) ** 2. / (2. * std_mutilde ** 2.))
-    gamma_dist = norm_gamma * np.exp(-(np.log10(gamma) - mean_gamma) ** 2. / (2. * std_gamma ** 2.))
-
-    if gamma_dist <= 0 or gamma_dist >= 1 or gamma != float:
-        return -np.inf
-    else:
-        return log_mutilde_dist + gamma_dist
+catalog_path = Path(__file__).with_name("logD.csv")
+print(f"Reading from {catalog_path}...")
+datafile = pd.read_csv(catalog_path)
+logD_value = datafile.iloc[0, 0]
 
 def log_likelihood(theta,
                    # observed orbital separation for the system
                    osep_observed=logD_value):
 
-    gamma, tilde = theta
+    tilde, gamma = theta
 
-    logK = log_K(tilde, osep_observed)
-    K = 10. ** (logK)
-    K0 = np.sqrt(12)
-
-    likelihood = 1. - sigmoid(K - K0)
-    loglikelihood = np.log(likelihood)
+    loglikelihood = orbital_log_likelihood(tilde, osep_observed)
     return loglikelihood
 
 
 def log_posterior(theta):
-    logprior = log_prior(theta)
-    if not np.isfinite(logprior):
-        return -np.inf
-    else:
-        loglikelihood = log_likelihood(theta)
-        logposterior = logprior + loglikelihood
-        return logposterior
+    return combine_log_posterior(theta, log_prior, log_likelihood)
 
 ndim = 2
 nwalkers = 1000
@@ -105,7 +72,7 @@ plt.show()
 plt.figure(2)
 plt.scatter(K, masses, color="Blue", s=7)
 plt.xlabel("K")
-plt.ylabel("Upper Masses (M$_\oplus$)")
+plt.ylabel(r"Upper Masses (M$_\oplus$)")
 plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", which="minor", length=4)
 plt.minorticks_on()
 plt.show()
