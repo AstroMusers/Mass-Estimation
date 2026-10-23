@@ -44,6 +44,18 @@ one-dimensional sequence with one value per neighboring pair. Invalid shapes,
 masked inputs, and `NaN` values raise an error before random directions are
 drawn. Infinite log separations retain the likelihood's limiting behavior.
 
+## Single-pair example
+
+The [single-pair notebook](examples/single_pair_posterior.ipynb) evaluates the
+shared pairwise prior and likelihood over a deterministic grid using the first
+observed separation in `logD.csv`. It writes a three-panel PNG and, when Bokeh
+is installed, a hoverable HTML version directly under `visuals/` as
+`mass_estimation_single_pair_posterior.png` and
+`mass_estimation_single_pair_posterior.html`. The grid visualizes the model used
+by `MCMC_single_pair.py`; it is not a sampled chain and does not assess
+convergence. Install Bokeh for the interactive version with
+`python -m pip install bokeh`.
+
 ## Interpreting results
 
 Summary figures use the fitted samples and retain host and planet-pair labels.

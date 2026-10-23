@@ -1,4 +1,5 @@
 import ast
+import json
 from decimal import Decimal, localcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +21,25 @@ SCRIPT_FILES = [
     'MCMC_single_system_all_pairs.py',
     'MCMC_planet_masses.py',
 ]
+
+
+def test_single_pair_example_notebook_uses_shared_model_and_keeps_paths_private():
+    path = Path(__file__).parent / 'examples' / 'single_pair_posterior.ipynb'
+    print('Reading from examples/single_pair_posterior.ipynb...')
+    notebook = json.loads(path.read_text(encoding='utf-8'))
+    code = '\n'.join(
+        ''.join(cell['source'])
+        for cell in notebook['cells']
+        if cell['cell_type'] == 'code'
+    )
+    document = json.dumps(notebook)
+
+    assert 'from pairwise_model import combine_log_posterior, log_prior, orbital_log_likelihood' in code
+    assert 'from MCMC_single_pair import' not in code
+    assert 'mass_estimation_single_pair_posterior.{typefileplot}' in code
+    assert 'mass_estimation_single_pair_posterior.html' in code
+    assert 'not a sampled chain' in document
+    assert '/' + 'Users/' not in document
 
 
 @pytest.mark.parametrize('filename', SCRIPT_FILES)
