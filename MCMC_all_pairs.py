@@ -7,6 +7,7 @@ import corner
 import pandas as pd
 from pathlib import Path
 from pairwise_model import log_K, log_prior, combine_log_posterior, orbital_log_likelihood
+from tdpy.verbosity import print, retr_boolverb
 
 catalog_path = Path(__file__).with_name("logD.csv")
 print(f"Reading from {catalog_path}...")
@@ -48,9 +49,9 @@ gamma = np.transpose(np.array(gamma))
 pos = np.transpose(np.vstack((log_mu_tilde, gamma)))
 
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior)
-state_1 = sampler.run_mcmc(pos, 50, progress=True)
+state_1 = sampler.run_mcmc(pos, 50, progress=retr_boolverb())
 sampler.reset()
-sampler.run_mcmc(state_1, 250, progress=True)
+sampler.run_mcmc(state_1, 250, progress=retr_boolverb())
 flat_samples = sampler.get_chain(flat=True)
 
 labels = ["log10_mutilde", "gamma"]

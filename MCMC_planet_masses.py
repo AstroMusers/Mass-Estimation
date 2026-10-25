@@ -17,6 +17,7 @@ import corner
 import pandas as pd
 from pathlib import Path
 from tdpy import samp_powr
+from tdpy.verbosity import print, retr_boolverb
 from pairwise_model import adjacent_orbital_separations, reconstruct_neighbor_masses, orbital_separation, log_K
 
 filename = Path(__file__).with_name("only_transit_data_28062023.csv")
@@ -27,8 +28,8 @@ number_of_systems = 5
 a = 0
 row_counter = 0
 passed_systems = 0
-lower_limit = 1
-upper_limit = 317.8
+lower_limit = 1  # [M_earth]
+upper_limit = 317.8  # [M_earth]
 gamma_mean = 1
 gamma_std = 0.3
 
@@ -88,7 +89,7 @@ while a != number_of_systems and row_counter < len(datafile):
                 number = random.randint(0, 1)
                 number_values.append(number)
             directions = (mass_decide, *number_values)
-            masses = reconstruct_neighbor_masses(m0, gamma, directions)[:, None]
+            masses = reconstruct_neighbor_masses(m0, gamma, directions)[:, None]  # [M_earth]
             mu_tilde_distribution = (masses[:-1] + masses[1:]) / st_mass
             log_mu_tilde = np.log10(mu_tilde_distribution)
 
@@ -123,7 +124,7 @@ while a != number_of_systems and row_counter < len(datafile):
 
         pos_array = np.zeros(nwalkers)
 
-        m0 = samp_powr(nwalkers, lower_limit, upper_limit, order)
+        m0 = samp_powr(nwalkers, lower_limit, upper_limit, order)  # [M_earth]
         pos_array = np.vstack((pos_array,m0))
         labels.append(fr"$\log M_{0}$")
         truths.append(np.mean(np.log10(m0)))
@@ -147,20 +148,20 @@ while a != number_of_systems and row_counter < len(datafile):
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args=(True,),
                         blobs_dtype=[('mass_directions', np.int8, (len(logD_array),))])
-        state_1 = sampler.run_mcmc(pos, burn_steps, progress=True)
+        state_1 = sampler.run_mcmc(pos, burn_steps, progress=retr_boolverb())
         sampler.reset()
-        sampler.run_mcmc(state_1, num_steps, progress=True)
+        sampler.run_mcmc(state_1, num_steps, progress=retr_boolverb())
         flat_samples = sampler.get_chain(flat=True)
 
         flat_samples = flat_samples.T
 
-        m0 = flat_samples[0]
+        m0 = flat_samples[0]  # [M_earth]
         gamma = flat_samples[1:]
         directions = sampler.get_blobs(flat=True)['mass_directions'].T
-        masses = reconstruct_neighbor_masses(m0, gamma, directions)
+        masses = reconstruct_neighbor_masses(m0, gamma, directions)  # [M_earth]
 
         flat_samples_corner = flat_samples
-        calculated_masses = masses[1:]
+        calculated_masses = masses[1:]  # [M_earth]
         for i in range(len(calculated_masses)):
             labels.append(r"$\log M$" + fr"$_{i+1}$" + r" [$\log M_{\oplus}$]")
             truths.append(np.mean(np.log10(calculated_masses)[i]))

@@ -4,7 +4,7 @@ How massive can the planets in a multiplanetary system be before their orbits be
 
 ## Local paths
 
-From the checkout root, source `scripts/set_repository_path.sh` to set `MASS_ESTIMATION_PATH` in the current shell. Existing catalog files remain at the repository root; the ignored `data/` and `visuals/` directories are available for local inputs and generated figures.
+From the checkout root, source `scripts/set_repository_path.sh` to set `MASS_ESTIMATION_PATH` in the current shell. Existing catalog files remain at the repository root. The ignored `data/` and `visuals/` directories are available for local inputs and generated figures.
 
 ## Pairwise models
 
@@ -22,12 +22,11 @@ scripts.
 
 ## Catalog input
 
-The multi-system scripts use adjacent catalog rows to form planet pairs. Keep
-each host's rows together and begin a selected block at its first row. The
-scripts preserve that row order rather than sorting or regrouping planets. Host
-identifiers must be present, and paired periods must be finite and positive.
-Invalid or incomplete selections raise an error. A host's stellar mass is read
-for that system.
+The multi-system scripts form planet pairs from adjacent catalog rows. Keep each
+host's rows together and begin selected blocks at the first row. Pair formation
+follows the selected row order. Host identifiers must be present, and paired
+periods must be finite and positive. Invalid or incomplete selections raise an
+error. A host's stellar mass is read for that system.
 
 ## Planet-mass sampling
 
@@ -51,10 +50,10 @@ shared pairwise prior and likelihood over a deterministic grid using the first
 observed separation in `logD.csv`. It writes a three-panel PNG and, when Bokeh
 is installed, a hoverable HTML version directly under `visuals/` as
 `mass_estimation_single_pair_posterior.png` and
-`mass_estimation_single_pair_posterior.html`. The grid visualizes the model used
-by `MCMC_single_pair.py`; it is not a sampled chain and does not assess
-convergence. Install Bokeh for the interactive version with
-`python -m pip install bokeh`.
+`mass_estimation_single_pair_posterior.html`. The grid shows the deterministic
+prior-likelihood surface used by `MCMC_single_pair.py`. The MCMC scripts generate
+sampled chains, whose convergence must be assessed separately. Install Bokeh
+for the interactive version with `python -m pip install bokeh`.
 
 ## Interpreting results
 

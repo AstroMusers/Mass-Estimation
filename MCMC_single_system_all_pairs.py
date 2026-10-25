@@ -8,6 +8,7 @@ import corner
 import pandas as pd
 from pathlib import Path
 from pairwise_model import log_K, orbital_log_likelihood, adjacent_orbital_separations, normal_log_density
+from tdpy.verbosity import print, retr_boolverb
 
 filename = Path(__file__).with_name("only_transit_data_28062023.csv")
 print(f"Reading from {filename}...")
@@ -28,7 +29,7 @@ log_mu_tilde_array = np.zeros((num_steps * nwalkers,))
 mass_array = np.empty((0, num_steps * nwalkers))  # [M_earth]
 K_array = np.zeros((num_steps * nwalkers,))
 mean_K_list = []
-mean_masses_list = []
+mean_masses_list = []  # [M_earth]
 which_systems = []
 planet_number = []
 
@@ -95,22 +96,22 @@ while a != number_of_systems and i < len(datafile):
         pos = np.transpose(np.vstack((gamma,log_mu_tilde)))
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior)
-        state_1 = sampler.run_mcmc(pos, burn_steps, progress=True)
+        state_1 = sampler.run_mcmc(pos, burn_steps, progress=retr_boolverb())
         sampler.reset()
-        sampler.run_mcmc(state_1, num_steps, progress=True)
+        sampler.run_mcmc(state_1, num_steps, progress=retr_boolverb())
         flat_samples = sampler.get_chain(flat=True)
 
         flat_samples = flat_samples.T
 
         mu_tilde = 10**(flat_samples[1])
         st_mass = datafile["st_mass"].iloc[i] * ast.M_sun.value / ast.M_earth.value  # [M_earth]
-        masses = (1 + flat_samples[0])**(-1) * mu_tilde * st_mass #result is in earth mass units
+        masses = (1 + flat_samples[0])**(-1) * mu_tilde * st_mass  # [M_earth]
         K = 10**log_K(flat_samples[1], logD_array[j])
 
         flat_samples = np.vstack((np.vstack((flat_samples,masses)),K))
         corner_samples = flat_samples.T
 
-        mean_masses = np.nanmean(masses)
+        mean_masses = np.nanmean(masses)  # [M_earth]
         mean_K = np.nanmean(K)
 
         gamma_array = np.vstack((gamma_array,flat_samples[0]))
@@ -120,10 +121,10 @@ while a != number_of_systems and i < len(datafile):
         mean_K_list.append(mean_K)
         mean_masses_list.append(mean_masses)
 
-        labels = ["gamma", "log_mutilde", "upper_mass", "dynamical_seperation (K)"]
+        labels = [r"$\gamma$", r"$\log_{10}\tilde{\mu}$", r"Upper mass ($M_\oplus$)", r"Orbital spacing ($K$)"]
         truths = [0.5, -4.3041661629482, np.nanmean(masses), np.nanmean(K)]
         fig = corner.corner(corner_samples, labels=labels, truths=truths)
-        print(f"System Hostname = {datafile['hostname'].iloc[i]}")
+        print(f"Host system {datafile['hostname'].iloc[i]}")
         plt.show()
         which_systems.append(datafile["hostname"].iloc[i])
         planet_number.append(j + 1)  ##first planet, second planet, etc.
@@ -133,9 +134,9 @@ while a != number_of_systems and i < len(datafile):
 
 ##### #####
 
-print(f"Passed System Count = {passed_systems}")
-print(f"Systems With More Than One Planet = {which_systems}")
-print(f"Planet Indexes = {planet_number}")
+print(f"Systems without adjacent pairs {passed_systems}")
+print(f"Hosts with analyzed adjacent pairs {which_systems}")
+print(f"Adjacent-pair indices {planet_number}")
 
 ### total mass figure ###
 

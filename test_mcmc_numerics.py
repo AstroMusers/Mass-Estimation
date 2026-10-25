@@ -42,8 +42,9 @@ def test_single_pair_example_notebook_uses_shared_model_and_keeps_paths_private(
     assert '/' + 'Users/' not in document
 
 
+@pytest.mark.parametrize('verbosity', ['0', '1'])
 @pytest.mark.parametrize('filename', SCRIPT_FILES)
-def test_mcmc_catalog_loading_is_independent_of_working_directory(filename, tmp_path, monkeypatch, capsys):
+def test_mcmc_catalog_loading_is_independent_of_working_directory(filename, verbosity, tmp_path, monkeypatch, capsys):
     import pandas as pd
 
     path = Path(__file__).with_name(filename).resolve()
@@ -57,6 +58,8 @@ def test_mcmc_catalog_loading_is_independent_of_working_directory(filename, tmp_
     selected = [
         node for node in tree.body[:loading_end + 1]
         if (
+            isinstance(node, ast.ImportFrom) and node.module == 'tdpy.verbosity'
+        ) or (
             isinstance(node, ast.Assign)
             and any(isinstance(target, ast.Name) and target.id in {'catalog_path', 'filename', 'datafile', 'logD'} for target in node.targets)
         ) or (
@@ -69,6 +72,7 @@ def test_mcmc_catalog_loading_is_independent_of_working_directory(filename, tmp_
     print(f'Reading from {catalog_path}...')
     expected = pd.read_csv(catalog_path, **({} if pairwise else {'skiprows': 202}))
     capsys.readouterr()
+    monkeypatch.setenv('TDPY_VERBOSITY', verbosity)
     monkeypatch.chdir(tmp_path)
     namespace = {'Path': Path, '__file__': str(path), 'pd': pd}
 
@@ -76,7 +80,74 @@ def test_mcmc_catalog_loading_is_independent_of_working_directory(filename, tmp_
 
     actual = namespace['logD' if filename == 'MCMC_all_pairs.py' else 'datafile']
     pd.testing.assert_frame_equal(actual, expected)
-    assert capsys.readouterr().out == f'Reading from {catalog_path}...\n'
+    expected_output = f'Reading from {catalog_path}...\n' if verbosity == '1' else ''
+    assert capsys.readouterr().out == expected_output
+
+
+@pytest.mark.parametrize('filename', SCRIPT_FILES)
+def test_mcmc_sampler_progress_uses_tdpy_verbosity(filename):
+    path = Path(__file__).with_name(filename)
+    print(f'Reading from {path}...')
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    progress_calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == 'run_mcmc'
+    ]
+
+    assert progress_calls
+    assert all(
+        any(
+            keyword.arg == 'progress'
+            and isinstance(keyword.value, ast.Call)
+            and isinstance(keyword.value.func, ast.Name)
+            and keyword.value.func.id == 'retr_boolverb'
+            for keyword in call.keywords
+        )
+        for call in progress_calls
+    )
+
+
+@pytest.mark.parametrize('verbosity', ['0', '1'])
+def test_single_pair_console_output_follows_tdpy_verbosity(verbosity, tmp_path, monkeypatch, capsys):
+    path = Path(__file__).with_name('MCMC_single_pair.py').resolve()
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    loading_end = next(
+        index for index, node in enumerate(tree.body)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == 'datafile' for target in node.targets)
+    )
+    selected = [
+        node for node in tree.body[:loading_end + 1]
+        if (isinstance(node, ast.ImportFrom) and node.module == 'tdpy.verbosity')
+        or (isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id in {'catalog_path', 'datafile'}
+            for target in node.targets
+        ))
+        or (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name) and node.value.func.id == 'print')
+    ]
+    monkeypatch.setenv('TDPY_VERBOSITY', verbosity)
+    monkeypatch.chdir(tmp_path)
+    namespace = {'Path': Path, '__file__': str(path), 'pd': pd}
+
+    exec(compile(ast.Module(body=selected, type_ignores=[]), str(path), 'exec'), namespace)
+
+    expected_output = f'Reading from {path.with_name("logD.csv")}...\n' if verbosity == '1' else ''
+    assert capsys.readouterr().out == expected_output
+    progress_calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == 'run_mcmc'
+    ]
+    assert len(progress_calls) == 2
+    assert all(
+        isinstance(keyword.value, ast.Call)
+        and isinstance(keyword.value.func, ast.Name)
+        and keyword.value.func.id == 'retr_boolverb'
+        for call in progress_calls
+        for keyword in call.keywords if keyword.arg == 'progress'
+    )
 
 
 def numerical_helpers(filename):

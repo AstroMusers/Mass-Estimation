@@ -8,6 +8,7 @@ import corner
 import pandas as pd
 from pathlib import Path
 from pairwise_model import log_K, log_prior, combine_log_posterior, orbital_log_likelihood
+from tdpy.verbosity import print, retr_boolverb
 
 catalog_path = Path(__file__).with_name("logD.csv")
 print(f"Reading from {catalog_path}...")
@@ -49,16 +50,16 @@ gamma = np.transpose(np.array(gamma))
 pos = np.transpose(np.vstack((log_mu_tilde, gamma)))
 
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior)
-state_1 = sampler.run_mcmc(pos, 50, progress=True)
+state_1 = sampler.run_mcmc(pos, 50, progress=retr_boolverb())
 sampler.reset()
-sampler.run_mcmc(state_1, 250, progress=True)
+sampler.run_mcmc(state_1, 250, progress=retr_boolverb())
 flat_samples = sampler.get_chain(flat=True)
 
 flat_samples = flat_samples.T
 
 mu_tilde = 10**(flat_samples[0])
-st_mass = 0.5 * ast.M_sun.value / ast.M_earth.value #solar mass turned to earth mass units
-masses = (1 + flat_samples[1])**(-1) * mu_tilde * st_mass
+st_mass = 0.5 * ast.M_sun.value / ast.M_earth.value  # [M_earth]
+masses = (1 + flat_samples[1])**(-1) * mu_tilde * st_mass  # [M_earth]
 K = 10**log_K(flat_samples[0], logD_value)
 
 flat_samples = np.vstack((np.vstack((flat_samples,masses)),K))
