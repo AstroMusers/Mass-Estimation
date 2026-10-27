@@ -1,30 +1,18 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from pathlib import Path
+from tdpy.verbosity import print
+from pairwise_model import adjacent_mutual_hill_radii
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
-planet_masses = datafile["pl_bmasse"] 
-star_masses = datafile["st_mass"] 
-semi_major_axes = datafile["pl_orbsmax"] 
-
-M_total_system_list = []
-hill_list = []
-for i in range(0, len(datafile)-1):
-    M = 0
-    index = 0
-    for r in datafile["hostname"]:
-        if r == datafile["hostname"][i]:
-            M += datafile["pl_bmasse"][index]
-        index += 1
-    M += datafile["st_mass"][i] * (0.33261191609863575142462501642665*(10**6))
-    if datafile["hostname"][i] == datafile["hostname"][i+1]:
-        hill_radius = ((planet_masses[i] + planet_masses[i+1])/(3*M))**(1/3) * ((semi_major_axes[i+1] + semi_major_axes[i])/2)
-        hill_list.append(hill_radius)
-hill_data = pd.Series(hill_list)
+_, hill_radii = adjacent_mutual_hill_radii(datafile)
+hill_data = pd.Series(hill_radii)
 hill_data = hill_data.dropna()
 hill_data = np.log10(hill_data)
 

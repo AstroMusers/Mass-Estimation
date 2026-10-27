@@ -3,12 +3,15 @@ import pandas as pd
 import numpy as np
 import scipy.stats as st
 import astropy.constants as ast
+from pathlib import Path
+from tdpy.verbosity import print
 
 #pl_bmasse 1239,1574,1621 are empty
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
 gamma_list = []
@@ -34,7 +37,9 @@ plt.tick_params(top=True, bottom=True, left=True, right=True, direction="in", wh
 plt.minorticks_on()
 plt.xlabel(fr"$\gamma$")
 plt.ylabel("Number of Exoplanet Pairs")
-plt.savefig("gamma_distribution.pdf")
+output_filename = Path("gamma_distribution.pdf")
+print(f"Writing to {output_filename}...")
+plt.savefig(output_filename)
 plt.show()
 
 a = st.uniform.rvs(0,1,len(gamma_array))

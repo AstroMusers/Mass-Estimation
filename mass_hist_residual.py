@@ -4,13 +4,19 @@ import numpy as np
 from scipy import stats as scp
 import astropy.constants as const
 import matplotlib.patches as ptc
+from pathlib import Path
+from tdpy.verbosity import print
+from pairwise_model import log_mu_tilde_from_log_K, pair_mass_fractions
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
-logD_dataframe = pd.read_csv("logD.csv")
+logD_filename = Path(__file__).with_name("logD.csv")
+print(f"Reading from {logD_filename}...")
+logD_dataframe = pd.read_csv(logD_filename)
 logD_series = logD_dataframe.squeeze()
 logD = logD_series.values.tolist()
 
@@ -30,22 +36,18 @@ while a != len(logD):
 #thiswork work - mass tilde
 mu_tilde = []
 for i in range(len(logD)):
-    mu_log = (3*(logD[i] - logK[i])) + np.log10(3)
+    mu_log = log_mu_tilde_from_log_K(logD[i], logK[i])
     mu_data = 10**mu_log
     mu_tilde.append(mu_data)
 mu_tilde_data = pd.Series(mu_tilde)
 
-planet_list = []
-for i in range(len(logD)):
-    planet_min_mu = gamma[i] * (1+gamma[i])**(-1) * mu_tilde[i]
-    planet_max_mu = (1+gamma[i])**(-1) * mu_tilde[i]
-    planet_list.append(planet_min_mu)
-    planet_list.append(planet_max_mu)
+minimum_fractions, maximum_fractions = pair_mass_fractions(gamma)
+planet_list = np.column_stack((minimum_fractions, maximum_fractions)).ravel().tolist()
 planet_list.append(np.mean(planet_list))
 
-planet_mass = []
+planet_mass = []  # [M_earth]
 for i in range(len(datafile)-1):
-    mass = (planet_list[i]*datafile["st_mass"][i]*const.M_sun.value)/const.M_earth.value
+    mass = (planet_list[i]*datafile["st_mass"][i]*const.M_sun.value)/const.M_earth.value  # [M_earth]
     planet_mass.append(mass)
 planet_mass_log = np.log10(planet_mass)
 planet_mass_log = pd.Series(planet_mass_log)
@@ -53,12 +55,12 @@ planet_mass_log = planet_mass_log.dropna()
 
 #Otegi et al. mass
 t_mu_data = []
-t_mass_data = []
+t_mass_data = []  # [M_earth]
 for i in range(len(datafile)-1):
     if datafile["pl_dens"][i] > 3.3:
-        mass = 0.9*((datafile["pl_rade"][i])**3.45)
+        mass = 0.9*((datafile["pl_rade"][i])**3.45)  # [M_earth]
     else:
-        mass = 1.74*((datafile["pl_rade"][i])**1.58)
+        mass = 1.74*((datafile["pl_rade"][i])**1.58)  # [M_earth]
     mu = mass/(datafile["st_mass"][i])
     t_mass_data.append(mass)
     t_mu_data.append(mu)
@@ -71,9 +73,9 @@ t_mass_log = t_mass_log.dropna()
 
 #NEA mass data
 e_mu_data = []
-e_mass_data = []
+e_mass_data = []  # [M_earth]
 for i in range(len(datafile)-1):
-    mass = datafile["pl_bmasse"][i]
+    mass = datafile["pl_bmasse"][i]  # [M_earth]
     e_mu = (datafile["pl_bmasse"][i])/(datafile["st_mass"][i])
     e_mu_data.append(e_mu)
     e_mass_data.append(mass)

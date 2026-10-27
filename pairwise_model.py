@@ -27,21 +27,135 @@ def adjacent_orbital_separations(catalog, system_position):
             larger_period, smaller_period = second_period, first_period
         with np.errstate(over='ignore'):
             period_ratio = larger_period / smaller_period
-        if np.isfinite(larger_period) and np.isfinite(smaller_period) and smaller_period > 0 and (not np.isfinite(period_ratio) or period_ratio - 1 < np.sqrt(np.finfo(float).eps)):
-            if np.isfinite(period_ratio):
-                log_ratio = np.log1p((larger_period - smaller_period) / smaller_period)
-            else:
-                log_ratio = np.log(larger_period) - np.log(smaller_period)
-            separation = 2 * np.tanh(log_ratio / 3)
-        else:
-            separation = 2 * ((period_ratio ** (2 / 3) - 1) / (period_ratio ** (2 / 3) + 1))
-        separations.append(separation)
+        separations.append(
+            orbital_separation_from_periods(smaller_period, larger_period)
+        )
     return np.array(separations), len(positions)
+
+
+def orbital_separation_from_periods(first_period, second_period):
+    """Return signed orbital spacing from ordered periods in the same time unit."""
+    first_period = np.float64(first_period)
+    second_period = np.float64(second_period)
+    with np.errstate(over='ignore', under='ignore', divide='ignore', invalid='ignore'):
+        period_ratio = second_period / first_period
+    if first_period > 0 and second_period > 0 and (
+        not np.isfinite(period_ratio)
+        or abs(period_ratio - 1) < np.sqrt(np.finfo(float).eps)
+    ):
+        if np.isfinite(period_ratio):
+            log_ratio = np.log1p((second_period - first_period) / first_period)
+        else:
+            log_ratio = np.log(second_period) - np.log(first_period)
+        return 2 * np.tanh(log_ratio / 3)
+    with np.errstate(over='ignore', invalid='ignore'):
+        ratio_power = period_ratio ** (2 / 3)
+        return 2 * ((ratio_power - 1) / (ratio_power + 1))
+
+
+def _adjacent_pair_positions(catalog, instrument=None):
+    hostnames = catalog["hostname"]
+    instruments = catalog["disc_instrument"] if instrument is not None else None
+    pair_positions = []
+    for position in range(len(catalog) - 1):
+        if instrument is not None and instruments.iloc[position] != instrument:
+            continue
+        if hostnames.iloc[position] != hostnames.iloc[position + 1]:
+            continue
+        pair_positions.append(position)
+    return np.asarray(pair_positions, dtype=int)
+
+
+def adjacent_period_spacings(catalog, instrument=None):
+    """Return adjacent same-host period spacings and their row positions."""
+    periods = catalog["pl_orbper"]
+    pair_positions = _adjacent_pair_positions(catalog, instrument)
+    spacings = [
+        orbital_separation_from_periods(periods.iloc[position], periods.iloc[position + 1])
+        for position in pair_positions
+    ]
+
+    return pair_positions, np.asarray(spacings)
+
+
+def mutual_hill_radius(planet_masses, semi_major_axes, system_mass):
+    """Return the adjacent pair's mutual Hill radius [AU]."""
+    pair_mass = planet_masses[0] + planet_masses[1]  # [M_earth]
+    mean_axis = (semi_major_axes[0] + semi_major_axes[1]) / 2  # [AU]
+    return (pair_mass / (3 * system_mass)) ** (1 / 3) * mean_axis
+
+
+def adjacent_mutual_hill_radii(catalog):
+    """Return row positions and mutual Hill radii for adjacent same-host pairs."""
+    hostnames = catalog["hostname"]
+    planet_masses = catalog["pl_bmasse"]
+    semi_major_axes = catalog["pl_orbsmax"]
+    stellar_masses = catalog["st_mass"]
+    solar_mass_in_earth_masses = 0.33261191609863575142462501642665 * 10**6  # [M_earth / M_sun]
+    hill_radii = []  # [AU]
+
+    pair_positions = _adjacent_pair_positions(catalog)
+    for position in pair_positions:
+        hostname = hostnames.iloc[position]
+        total_planet_mass = sum(
+            planet_masses.iloc[index]
+            for index, candidate in enumerate(hostnames)
+            if candidate == hostname
+        )
+        system_mass = (
+            total_planet_mass
+            + stellar_masses.iloc[position] * solar_mass_in_earth_masses
+        )  # [M_earth]
+        hill_radii.append(
+            mutual_hill_radius(
+                planet_masses.iloc[position : position + 2].to_numpy(),
+                semi_major_axes.iloc[position : position + 2].to_numpy(),
+                system_mass,
+            )
+        )
+    return pair_positions, np.asarray(hill_radii)
+
+
+def initial_pairwise_positions(
+    number_walkers,
+    log_mass_location,
+    log_mass_scale,
+    gamma_location=1.0,
+    gamma_scale=0.3,
+):
+    """Draw walker coordinates as (log10(mu_tilde), gamma), with 0 < gamma < 1."""
+    log_mass = stats.norm.rvs(
+        size=number_walkers, loc=log_mass_location, scale=log_mass_scale
+    )
+    gamma = []
+    while len(gamma) != number_walkers:
+        candidate = stats.norm.rvs(gamma_location, gamma_scale)
+        if 0 < candidate < 1:
+            gamma.append(candidate)
+    return np.transpose(np.vstack((log_mass, gamma)))
+
+
+def pair_mass_fractions(gamma):
+    """Return the lower and upper masses as fractions of pair mass ``mu_tilde``."""
+    gamma = np.asarray(gamma)
+    inverse_total = (1 + gamma) ** (-1)
+    return gamma * inverse_total, inverse_total
+
+
+def adjacent_pair_mass_ratios(masses, stellar_mass):
+    """Return each adjacent planet-mass sum divided by stellar mass."""
+    masses = np.asarray(masses)
+    return (masses[:-1] + masses[1:]) / stellar_mass
 
 
 def log_K(log_mu_tilde, log_osep_observed):
     """Return the existing base-ten orbital-separation transform."""
     return log_osep_observed - (1 / 3) * log_mu_tilde + (1 / 3) * np.log10(3.0)
+
+
+def log_mu_tilde_from_log_K(log_osep_observed, log_K_observed):
+    """Invert ``log_K`` to recover the pair's base-ten mass ratio."""
+    return 3 * (log_osep_observed - log_K_observed) + np.log10(3.0)
 
 
 def reconstruct_neighbor_masses(first_mass, mass_ratios, directions):
@@ -86,16 +200,9 @@ def normal_log_density(value, mean, standard_deviation):
     """Evaluate a scalar Gaussian log density, retaining representable tails."""
     if not np.isfinite(mean) or not np.isfinite(standard_deviation) or standard_deviation <= 0:
         raise ValueError('Gaussian location must be finite and scale must be finite and positive')
-    with np.errstate(over='ignore', under='ignore'):
-        density = stats.norm.logpdf(value, mean, standard_deviation)
-    if not np.isfinite(density):
-        with np.errstate(over='ignore', under='ignore'):
-            difference = value - mean
-            standardized = difference / standard_deviation
-            if not np.isfinite(difference) and np.isfinite(value):
-                standardized = value / standard_deviation - mean / standard_deviation
-            density = (-0.5 * standardized) * standardized - np.log(standard_deviation) - 0.5 * np.log(2.0 * np.pi)
-    return density
+    from tdpy.numerics import logpdf_gaus
+
+    return logpdf_gaus(value, mean, standard_deviation)
 
 
 def log_prior(theta):
@@ -111,7 +218,9 @@ def log_prior(theta):
     if not np.isfinite(log_mass_gaussian):
         return -np.inf
     log_mutilde_dist = log_mass_gaussian - np.log(10.0) * log_mutilde
-    log_gamma_dist = stats.norm.logpdf(np.log10(gamma), mean_gamma, std_gamma) - np.log(gamma)
+    log_gamma_dist = normal_log_density(
+        np.log10(gamma), mean_gamma, std_gamma
+    ) - np.log(gamma)
     return log_mutilde_dist + log_gamma_dist
 
 

@@ -22,6 +22,20 @@ SCRIPT_FILES = [
     'MCMC_planet_masses.py',
 ]
 
+FILE_OPERATION_SCRIPT_FILES = [
+    'MCMC_all_pairs.py',
+    'MCMC_single_pair.py',
+    'MCMC_single_system_all_pairs.py',
+    'gamma_distribution.py',
+    'instrument_mass_histogram.py',
+    'mass_hist_residual.py',
+    'mu_tilde_distribution.py',
+    'mutual_hill_radius.py',
+    'orbital_seperation.py',
+    'total_d.py',
+    'MCMC_planet_masses.py',
+]
+
 
 def test_single_pair_example_notebook_uses_shared_model_and_keeps_paths_private():
     path = Path(__file__).parent / 'examples' / 'single_pair_posterior.ipynb'
@@ -106,6 +120,55 @@ def test_mcmc_sampler_progress_uses_tdpy_verbosity(filename):
         )
         for call in progress_calls
     )
+
+
+@pytest.mark.parametrize('filename', FILE_OPERATION_SCRIPT_FILES)
+def test_file_operations_have_exact_verbosity_narration(filename):
+    path = Path(__file__).with_name(filename)
+    print(f'Reading from {path}...')
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    assert any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == 'tdpy.verbosity'
+        and any(alias.name == 'print' for alias in node.names)
+        for node in tree.body
+    )
+
+    def file_operation(statement):
+        if not isinstance(statement, (ast.Assign, ast.Expr)):
+            return False
+        return any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {'read_csv', 'to_csv', 'savefig'}
+            for node in ast.walk(statement)
+        )
+
+    def narration(statement):
+        return (
+            isinstance(statement, ast.Expr)
+            and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Name)
+            and statement.value.func.id == 'print'
+            and any(
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and node.value.startswith(('Reading from ', 'Writing to '))
+                for node in ast.walk(statement.value)
+            )
+        )
+
+    narrated_operations = 0
+    for parent in ast.walk(tree):
+        body = getattr(parent, 'body', None)
+        if not isinstance(body, list):
+            continue
+        for index, statement in enumerate(body):
+            if file_operation(statement):
+                assert index > 0 and narration(body[index - 1]), (filename, statement.lineno)
+                narrated_operations += 1
+
+    assert narrated_operations
 
 
 @pytest.mark.parametrize('verbosity', ['0', '1'])
@@ -381,6 +444,188 @@ def test_shared_orbital_separation_preserves_ordinary_calculations_exactly():
                 expected = 2 * ((original_ratio ** (2 / 3) - 1) / (original_ratio ** (2 / 3) + 1))
                 actual, _ = adjacent_orbital_separations(catalog, 0)
                 assert actual[0] == expected
+
+
+@pytest.mark.parametrize(('first_period', 'second_period'), [
+    (1.0, 1.01), (1.0, 1.5), (1.0, 2.0), (1.0, 10.0),
+    (1.5, 1.0), (2.0, 1.0), (10.0, 1.0),
+])
+def test_orbital_separation_from_periods_preserves_ordinary_formula(first_period, second_period):
+    from pairwise_model import orbital_separation_from_periods
+
+    ratio = second_period / first_period
+    ratio_power = ratio ** (2 / 3)
+    expected = 2 * ((ratio_power - 1) / (ratio_power + 1))
+
+    assert orbital_separation_from_periods(first_period, second_period) == expected
+
+
+@pytest.mark.parametrize(('first_period', 'second_period'), [
+    (1.0, np.nextafter(1.0, 2.0)),
+    (np.nextafter(1.0, 2.0), 1.0),
+])
+def test_orbital_separation_from_periods_retains_signed_close_pairs(first_period, second_period):
+    from pairwise_model import orbital_separation_from_periods
+
+    expected_log_ratio = np.log1p((second_period - first_period) / first_period)
+    expected = 2 * np.tanh(expected_log_ratio / 3)
+
+    assert orbital_separation_from_periods(first_period, second_period) == expected
+
+
+def test_orbital_separation_from_periods_preserves_overflow_limits():
+    from pairwise_model import orbital_separation_from_periods
+
+    with np.errstate(all='raise'):
+        assert orbital_separation_from_periods(1e-300, 1e300) == 2.0
+        assert orbital_separation_from_periods(1e300, 1e-300) == -2.0
+
+
+def test_adjacent_period_spacings_preserves_host_pairs_and_instrument_filter():
+    import pandas as pd
+    from pairwise_model import adjacent_period_spacings
+
+    catalog = pd.DataFrame({
+        "hostname": ["A", "A", "B", "B", "C", "C"],
+        "pl_orbper": [1.0, 2.0, 4.0, 2.0, 3.0, 6.0],
+        "disc_instrument": ["TESS CCD Array", "Kepler", "TESS CCD Array", "TESS", "Kepler CCD Array", "Kepler"],
+    }, index=[10, 20, 30, 40, 50, 60])
+    expected = np.array([
+        2 * ((ratio ** (2 / 3) - 1) / (ratio ** (2 / 3) + 1))
+        for ratio in (2.0, 0.5, 2.0)
+    ])
+
+    positions, spacings = adjacent_period_spacings(catalog)
+    tess_positions, tess_spacings = adjacent_period_spacings(
+        catalog, instrument="TESS CCD Array"
+    )
+
+    np.testing.assert_array_equal(positions, [0, 2, 4])
+    np.testing.assert_array_equal(spacings, expected)
+    np.testing.assert_array_equal(tess_positions, [0, 2])
+    np.testing.assert_array_equal(tess_spacings, expected[[0, 1]])
+
+
+@pytest.mark.parametrize(("masses", "axes", "system_mass"), [
+    ([1.0, 2.0], [0.1, 0.2], 333000.0),
+    ([10.0, 0.5], [0.04, 0.09], 666001.5),
+    ([0.2, 0.1], [1.0, 4.0], 999000.3),
+])
+def test_shared_mutual_hill_radius_preserves_original_formula(masses, axes, system_mass):
+    from pairwise_model import mutual_hill_radius
+
+    expected = ((masses[0] + masses[1]) / (3 * system_mass)) ** (1 / 3) * ((axes[0] + axes[1]) / 2)
+
+    assert mutual_hill_radius(masses, axes, system_mass) == expected
+
+
+def test_adjacent_mutual_hill_radii_preserves_pair_positions_and_system_masses():
+    import pandas as pd
+    from pairwise_model import adjacent_mutual_hill_radii
+
+    catalog = pd.DataFrame({
+        "hostname": ["A", "A", "B", "B", "A"],
+        "pl_bmasse": [1.0, 2.0, 3.0, 4.0, 5.0],
+        "pl_orbsmax": [0.1, 0.2, 0.3, 0.5, 0.8],
+        "st_mass": [1.0, 9.0, 2.0, 8.0, 7.0],
+    })
+    solar_mass_in_earth_masses = 0.33261191609863575142462501642665 * 10**6
+    expected = [
+        ((1.0 + 2.0) / (3 * (1.0 + 2.0 + 5.0 + solar_mass_in_earth_masses))) ** (1 / 3) * ((0.1 + 0.2) / 2),
+        ((3.0 + 4.0) / (3 * (3.0 + 4.0 + 2.0 * solar_mass_in_earth_masses))) ** (1 / 3) * ((0.3 + 0.5) / 2),
+    ]
+
+    positions, radii = adjacent_mutual_hill_radii(catalog)
+
+    np.testing.assert_array_equal(positions, [0, 2])
+    np.testing.assert_array_equal(radii, expected)
+
+
+def test_adjacent_mutual_hill_radii_returns_integer_empty_positions():
+    import pandas as pd
+    from pairwise_model import adjacent_mutual_hill_radii
+
+    catalog = pd.DataFrame({
+        "hostname": ["A"],
+        "pl_bmasse": [1.0],
+        "pl_orbsmax": [0.1],
+        "st_mass": [1.0],
+    })
+
+    positions, radii = adjacent_mutual_hill_radii(catalog)
+
+    assert positions.dtype.kind in "iu"
+    assert positions.size == radii.size == 0
+
+
+@pytest.mark.parametrize(
+    ("mass_location", "mass_scale"),
+    [(-4.31921754762478, 0.28778378882844535), (-4.3041661629482, 0.30148352295199915)],
+)
+def test_initial_pairwise_positions_preserves_seeded_draw_sequence(mass_location, mass_scale):
+    from pairwise_model import initial_pairwise_positions
+
+    np.random.seed(17)
+    log_mass = stats.norm.rvs(size=12, loc=mass_location, scale=mass_scale)
+    gamma = []
+    while len(gamma) != 12:
+        candidate = stats.norm.rvs(1.0, 0.3)
+        if 0 < candidate < 1:
+            gamma.append(candidate)
+    expected = np.transpose(np.vstack((log_mass, gamma)))
+
+    np.random.seed(17)
+    actual = initial_pairwise_positions(12, mass_location, mass_scale)
+
+    np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("gamma", [0.01, 0.5, 0.99, [0.01, 0.5, 0.99]])
+def test_pair_mass_fractions_preserve_original_formulas(gamma):
+    from pairwise_model import pair_mass_fractions
+
+    gamma = np.asarray(gamma)
+    expected_lower = gamma * (1 + gamma) ** (-1)
+    expected_upper = (1 + gamma) ** (-1)
+
+    lower, upper = pair_mass_fractions(gamma)
+
+    np.testing.assert_array_equal(lower, expected_lower)
+    np.testing.assert_array_equal(upper, expected_upper)
+
+
+@pytest.mark.parametrize(
+    ("masses", "stellar_mass"),
+    [
+        ([1.0, 2.0, 4.0], 10.0),
+        (np.array([[1.0, 10.0], [2.0, 20.0], [4.0, 40.0]]), 100.0),
+    ],
+)
+def test_adjacent_pair_mass_ratios_preserve_vector_shapes(masses, stellar_mass):
+    from pairwise_model import adjacent_pair_mass_ratios
+
+    expected = (np.asarray(masses[:-1]) + np.asarray(masses[1:])) / stellar_mass
+
+    np.testing.assert_array_equal(
+        adjacent_pair_mass_ratios(masses, stellar_mass), expected
+    )
+
+
+def test_log_mu_tilde_inverts_the_shared_orbital_spacing_transform():
+    from pairwise_model import log_K, log_mu_tilde_from_log_K
+
+    log_mass = np.array([-8.0, -4.0, 0.5])
+    log_separation = np.array([-3.0, -1.0, 0.2])
+    log_spacing = log_K(log_mass, log_separation)
+
+    np.testing.assert_array_equal(
+        log_mu_tilde_from_log_K(log_separation, log_spacing),
+        3 * (log_separation - log_spacing) + np.log10(3.0),
+    )
+    np.testing.assert_allclose(
+        log_mu_tilde_from_log_K(log_separation, log_spacing), log_mass,
+        rtol=0.0, atol=2e-15,
+    )
 
 
 @pytest.mark.parametrize('filename', SCRIPT_FILES)
@@ -707,19 +952,43 @@ def test_planet_mass_likelihood_preserves_aligned_observation_containers(contain
 @pytest.mark.parametrize('planet_count', [2, 4])
 @pytest.mark.parametrize('sample_count', [2, 7])
 def test_planet_mass_ratio_corner_columns_retain_all_adjacent_pairs(planet_count, sample_count):
+    import pairwise_model
+
     path = Path(__file__).with_name('MCMC_planet_masses.py')
     print(f'Reading from {path}...')
     tree = ast.parse(path.read_text())
-    loop = next(node for node in ast.walk(tree) if isinstance(node, ast.For) and any(isinstance(statement, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'mu_tilde' for target in statement.targets) for statement in ast.walk(node)))
+    assignment = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == 'mu_tilde_distribution'
+                for target in node.targets)
+    )
+    summary_loop = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.For)
+        and isinstance(node.target, ast.Tuple)
+        and any(isinstance(target, ast.Name) and target.id == 'log_mutilde'
+                for target in node.target.elts)
+    )
     masses = np.arange(1.0, planet_count * sample_count + 1.0).reshape(planet_count, sample_count)  # [M_earth]
     stellar_mass = 100000.0  # [M_earth]
     expected = (masses[:-1] + masses[1:]) / stellar_mass
-    namespace = {'np': np, 'masses': masses, 'st_mass': stellar_mass, 'mu_tilde_distribution': [], 'labels': [], 'truths': []}
+    namespace = {
+        'np': np,
+        'masses': masses,
+        'st_mass': stellar_mass,
+        'adjacent_pair_mass_ratios': pairwise_model.adjacent_pair_mass_ratios,
+        'labels': [],
+        'truths': [],
+    }
 
     with np.errstate(all='raise'):
-        exec(compile(ast.Module(body=[loop], type_ignores=[]), str(path), 'exec'), namespace)
+        exec(compile(ast.Module(body=[assignment], type_ignores=[]), str(path), 'exec'), namespace)
 
     np.testing.assert_array_equal(namespace['mu_tilde_distribution'], expected)
+    namespace['log_mu_tilde'] = np.log10(namespace['mu_tilde_distribution'])
+    with np.errstate(all='raise'):
+        exec(compile(ast.Module(body=[summary_loop], type_ignores=[]), str(path), 'exec'), namespace)
     np.testing.assert_array_equal(namespace['truths'], np.mean(np.log10(expected), axis=1))
     assert len(namespace['labels']) == planet_count - 1
 
@@ -1017,13 +1286,24 @@ def test_pairwise_prior_preserves_ordinary_evaluation_exactly(filename):
 
 @pytest.mark.parametrize('filename', SCRIPT_FILES[:2])
 def test_pairwise_posterior_and_initialization_use_the_same_parameter_order(filename):
+    import pairwise_model
+
     helpers = numerical_helpers(filename)
     path = Path(__file__).with_name(filename)
     print(f'Reading from {path}...')
     tree = ast.parse(path.read_text())
     position = next(node for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'pos' for target in node.targets))
-    helpers.update(log_mu_tilde=np.array([-4.0, -4.1]), gamma=np.array([0.5, 0.6]))
+    helpers.update(
+        nwalkers=2,
+        initial_pairwise_positions=pairwise_model.initial_pairwise_positions,
+    )
+    np.random.seed(23)
     exec(compile(ast.Module(body=[position], type_ignores=[]), str(path), 'exec'), helpers)
+    np.random.seed(23)
+    expected_positions = pairwise_model.initial_pairwise_positions(
+        2, -4.31921754762478, 0.28778378882844535
+    )
+    np.testing.assert_array_equal(helpers['pos'], expected_positions)
 
     for theta in helpers['pos']:
         prior = helpers['log_prior'](theta)
@@ -1196,6 +1476,23 @@ def test_multi_system_prior_preserves_distinct_written_gaussians_exactly(mass_co
         actual = helpers['log_prior']((gamma, mass_coordinate))
 
     assert actual == expected
+
+
+def test_multi_system_posterior_uses_shared_prior_first_combiner():
+    import pairwise_model
+
+    helpers = numerical_helpers('MCMC_single_system_all_pairs.py')
+    assert helpers['combine_log_posterior'] is pairwise_model.combine_log_posterior
+    prior = Mock(return_value=-np.inf)
+    likelihood = Mock(return_value=5.0)
+    helpers.update(log_prior=prior, log_likelihood=likelihood)
+
+    assert helpers['log_posterior']((0.5, -4.0)) == -np.inf
+    likelihood.assert_not_called()
+
+    prior.return_value = -3.0
+    assert helpers['log_posterior']((0.5, -4.0)) == 2.0
+    likelihood.assert_called_once_with((0.5, -4.0))
 
 
 @pytest.mark.parametrize('mass_coordinate', [-5e153, 5e153, -1e200, 1e200, -np.finfo(float).max, np.finfo(float).max])

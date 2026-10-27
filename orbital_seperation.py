@@ -2,32 +2,26 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import scipy.stats as st
+from pathlib import Path
+from tdpy.verbosity import print
+from pairwise_model import adjacent_mutual_hill_radii
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
 ### K Calculation ###
 
-planet_masses = datafile["pl_bmasse"] 
-star_masses = datafile["st_mass"] 
-semi_major_axes = datafile["pl_orbsmax"] 
+semi_major_axes = datafile["pl_orbsmax"]  # [AU]
 
-K_list = []
-for i in range(0, len(datafile)-1):
-    M = 0
-    index = 0
-    for r in datafile["hostname"]:
-        if r == datafile["hostname"][i]:
-            M += datafile["pl_bmasse"][index]
-        index += 1
-    M += datafile["st_mass"][i]* (0.33261191609863575142462501642665*(10**6))
-    if datafile["hostname"][i] == datafile["hostname"][i+1]:
-        hill_radius = ((planet_masses[i] + planet_masses[i+1])/(3*M))**(1/3) * ((semi_major_axes[i+1] + semi_major_axes[i])/2)
-        K = (semi_major_axes[i+1] - semi_major_axes[i])/hill_radius
-        K_list.append(K)
-K_data = pd.Series(K_list)
+pair_positions, hill_radii = adjacent_mutual_hill_radii(datafile)
+axis_gaps = (
+    semi_major_axes.iloc[pair_positions + 1].to_numpy()
+    - semi_major_axes.iloc[pair_positions].to_numpy()
+)
+K_data = pd.Series(axis_gaps / hill_radii)
 K_data = K_data[K_data > 0]
 logK = np.log10(K_data)
 

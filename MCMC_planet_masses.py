@@ -18,7 +18,13 @@ import pandas as pd
 from pathlib import Path
 from tdpy import samp_powr
 from tdpy.verbosity import print, retr_boolverb
-from pairwise_model import adjacent_orbital_separations, reconstruct_neighbor_masses, orbital_separation, log_K
+from pairwise_model import (
+    adjacent_orbital_separations,
+    adjacent_pair_mass_ratios,
+    reconstruct_neighbor_masses,
+    orbital_separation,
+    log_K,
+)
 
 filename = Path(__file__).with_name("only_transit_data_28062023.csv")
 print(f"Reading from {filename}...")
@@ -90,7 +96,7 @@ while a != number_of_systems and row_counter < len(datafile):
                 number_values.append(number)
             directions = (mass_decide, *number_values)
             masses = reconstruct_neighbor_masses(m0, gamma, directions)[:, None]  # [M_earth]
-            mu_tilde_distribution = (masses[:-1] + masses[1:]) / st_mass
+            mu_tilde_distribution = adjacent_pair_mass_ratios(masses, st_mass)
             log_mu_tilde = np.log10(mu_tilde_distribution)
 
             for i, observed_separation in enumerate(observations):
@@ -167,15 +173,11 @@ while a != number_of_systems and row_counter < len(datafile):
             truths.append(np.mean(np.log10(calculated_masses)[i]))
         flat_samples_corner = np.vstack((flat_samples_corner, np.log10(calculated_masses)))
 
-        mu_tilde_distribution = []
-        for i in range(len(masses) - 1):
-            mu_tilde = (masses[i] + masses[i+1])/st_mass
-            log_mutilde = np.log10(mu_tilde)
-            mu_tilde_distribution.append(mu_tilde)
+        mu_tilde_distribution = adjacent_pair_mass_ratios(masses, st_mass)
+        log_mu_tilde = np.log10(mu_tilde_distribution)
+        for i, log_mutilde in enumerate(log_mu_tilde):
             labels.append(r"$\log\tilde{\mu}$" + fr"$_{i}$")
             truths.append(np.mean(log_mutilde))
-        mu_tilde_distribution = np.array(mu_tilde_distribution)
-        log_mu_tilde = np.log10(mu_tilde_distribution)
         flat_samples_corner = np.vstack((flat_samples_corner, log_mu_tilde))
 
         """number_dist = []
@@ -204,7 +206,9 @@ while a != number_of_systems and row_counter < len(datafile):
 
         fig = corner.corner(flat_samples_corner, labels=labels, truths=truths)
         fig.text(0.5, 0.95, datafile["hostname"].iloc[row_counter] + f", Order: {-order}", ha='center', va='center', fontsize=12)
-        plt.savefig(datafile["hostname"].iloc[row_counter] + "_corner_plot.pdf")
+        output_filename = Path(datafile["hostname"].iloc[row_counter] + "_corner_plot.pdf")
+        print(f"Writing to {output_filename}...")
+        plt.savefig(output_filename)
         plt.show()
 
     a += 1

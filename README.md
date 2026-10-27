@@ -59,6 +59,4 @@ for the interactive version with `python -m pip install bokeh`.
 
 Summary figures use the fitted samples and retain host and planet-pair labels.
 The mass histogram reports sample counts, and the corner plot uses the full
-sample mean for each derived `kappa` column. A short run checks that the workflow
-executes. Assess chain convergence and the model assumptions before interpreting
-the posterior.
+sample mean for each derived `kappa` column.

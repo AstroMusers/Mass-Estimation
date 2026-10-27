@@ -3,19 +3,22 @@ import pandas as pd
 import numpy as np
 import scipy.stats as st
 import astropy.constants as ast
+from pathlib import Path
+from tdpy.verbosity import print
 
 #pl_bmasse 1239,1574,1621 are empty
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
 mu_tilde_list = []
 for i in range(len(datafile)-1):
     if datafile["hostname"][i] == datafile["hostname"][i+1]:
-        mass_sum = (datafile["pl_bmasse"][i] + datafile["pl_bmasse"][i+1]) * ast.M_earth.value #in kg unit
-        star_mass = datafile["st_mass"][i] * ast.M_sun.value #in kg unit
+        mass_sum = (datafile["pl_bmasse"][i] + datafile["pl_bmasse"][i+1]) * ast.M_earth.value  # [kg]
+        star_mass = datafile["st_mass"][i] * ast.M_sun.value  # [kg]
         mu_tilde = mass_sum/star_mass #unitless
         mu_tilde_list.append(mu_tilde)
     else:

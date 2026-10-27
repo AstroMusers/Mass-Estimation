@@ -2,30 +2,27 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import scipy.stats as st
+from pathlib import Path
+from tdpy.verbosity import print
+from pairwise_model import adjacent_period_spacings
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
 ##### total D data #####
 
-d_list = []
-passed = 0
-number_of_planets = 0
-for i in range(len(datafile)-1):
-    number_of_planets += 1
-    if datafile["hostname"][i] == datafile["hostname"][i+1]:
-        P_i = datafile["pl_orbper"][i+1]/datafile["pl_orbper"][i]
-        D = 2*(((P_i**(2/3)) - 1)/((P_i**(2/3))+1))
-        d_list.append(D)
-    else:
-        passed += 1
-d_data = pd.Series(d_list)
+pair_positions, d_values = adjacent_period_spacings(datafile)
+passed = len(datafile) - 1 - len(pair_positions)
+d_data = pd.Series(d_values)
 wanted_data = d_data[d_data.between(0, 2, inclusive="neither")]
 w = np.log10(wanted_data)
 
-w.to_csv("logD.csv", index=False, header=True)
+output_filename = Path("logD.csv")
+print(f"Writing to {output_filename}...")
+w.to_csv(output_filename, index=False, header=True)
 
 print("Mean of logD :", np.mean(w))
 print("Standard Deviation of logD :", np.std(w))
@@ -40,14 +37,10 @@ print("Normality test 2 result for dataset is", res2.statistic)
 
 ##### tess D data #####
 
-d1_list = []
-for i in range(0,len(datafile)-1):
-    if datafile["disc_instrument"][i] == "TESS CCD Array":
-        if datafile["hostname"][i] == datafile["hostname"][i+1]:
-            P_i = datafile["pl_orbper"][i+1]/datafile["pl_orbper"][i]
-            D = 2*((P_i**(2/3) - 1)/(P_i**(2/3)+1))
-            d1_list.append(D)
-d1_data = pd.Series(d1_list)
+_, tess_d_values = adjacent_period_spacings(
+    datafile, instrument="TESS CCD Array"
+)
+d1_data = pd.Series(tess_d_values)
 
 wanted_data1 = d1_data[d1_data > 0]
 w1 = np.log10(wanted_data1)
@@ -65,14 +58,10 @@ print("Normality test 2 result for Kepler-Tess is", res2.statistic)
 
 ##### kepler D data #####
 
-d2_list = []
-for i in range(0,len(datafile)-1):
-    if datafile["disc_instrument"][i] == "Kepler CCD Array":
-        if datafile["hostname"][i] == datafile["hostname"][i+1]:
-            P_i = datafile["pl_orbper"][i+1]/datafile["pl_orbper"][i]
-            D = 2*((P_i**(2/3) - 1)/(P_i**(2/3)+1))
-            d2_list.append(D)
-d2_data = pd.Series(d2_list)
+_, kepler_d_values = adjacent_period_spacings(
+    datafile, instrument="Kepler CCD Array"
+)
+d2_data = pd.Series(kepler_d_values)
 
 wanted_data2 = d2_data[d2_data > 0]
 w2 = np.log10(wanted_data2)

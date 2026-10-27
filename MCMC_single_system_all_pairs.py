@@ -7,7 +7,15 @@ import astropy.constants as ast
 import corner
 import pandas as pd
 from pathlib import Path
-from pairwise_model import log_K, orbital_log_likelihood, adjacent_orbital_separations, normal_log_density
+from pairwise_model import (
+    adjacent_orbital_separations,
+    combine_log_posterior,
+    initial_pairwise_positions,
+    log_K,
+    orbital_log_likelihood,
+    normal_log_density,
+    pair_mass_fractions,
+)
 from tdpy.verbosity import print, retr_boolverb
 
 filename = Path(__file__).with_name("only_transit_data_28062023.csv")
@@ -53,7 +61,7 @@ while a != number_of_systems and i < len(datafile):
             std_gamma = 0.3
 
             log_mutilde_dist = normal_log_density(log_mutilde, mean_mutilde, std_mutilde)
-            gamma_dist = scp.norm.logpdf(gamma, mean_gamma, std_gamma)
+            gamma_dist = normal_log_density(gamma, mean_gamma, std_gamma)
 
             total_log_prior = log_mutilde_dist + gamma_dist
 
@@ -69,31 +77,13 @@ while a != number_of_systems and i < len(datafile):
 
 
         def log_posterior(theta):
-            logprior = log_prior(theta)
-            if not np.isfinite(logprior):
-                return -np.inf
-            else:
-                loglikelihood = log_likelihood(theta)
-                logposterior = logprior + loglikelihood
-                return logposterior
+            return combine_log_posterior(theta, log_prior, log_likelihood)
 
         ##### mutilde and gamma samples #####
 
-        log_mu_tilde = scp.norm.rvs(size=nwalkers, loc=-4.3041661629482, scale=0.30148352295199915)
-        log_mu_tilde = np.transpose(np.array(log_mu_tilde))
-
-        gamma = []
-        b = 0
-        while b != nwalkers:
-            calc_data_gamma = scp.norm.rvs(1, 0.3)
-            if 0 < calc_data_gamma < 1:
-                gamma.append(calc_data_gamma)
-                b += 1
-        gamma = np.transpose(np.array(gamma))
-
-        ##### end #####
-
-        pos = np.transpose(np.vstack((gamma,log_mu_tilde)))
+        pos = initial_pairwise_positions(
+            nwalkers, -4.3041661629482, 0.30148352295199915
+        )[:, [1, 0]]
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior)
         state_1 = sampler.run_mcmc(pos, burn_steps, progress=retr_boolverb())
@@ -105,7 +95,8 @@ while a != number_of_systems and i < len(datafile):
 
         mu_tilde = 10**(flat_samples[1])
         st_mass = datafile["st_mass"].iloc[i] * ast.M_sun.value / ast.M_earth.value  # [M_earth]
-        masses = (1 + flat_samples[0])**(-1) * mu_tilde * st_mass  # [M_earth]
+        _, upper_mass_fraction = pair_mass_fractions(flat_samples[0])
+        masses = upper_mass_fraction * mu_tilde * st_mass  # [M_earth]
         K = 10**log_K(flat_samples[1], logD_array[j])
 
         flat_samples = np.vstack((np.vstack((flat_samples,masses)),K))

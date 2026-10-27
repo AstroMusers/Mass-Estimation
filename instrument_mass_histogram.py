@@ -3,15 +3,21 @@ import pandas as pd
 import numpy as np
 from scipy import stats as scp
 import astropy.constants as const
+from pathlib import Path
+from tdpy.verbosity import print
+from pairwise_model import log_mu_tilde_from_log_K, pair_mass_fractions
 
 plt.rcParams.update({'font.size': 8})
 
-filename = "only_transit_data_28062023.csv"
+filename = Path(__file__).with_name("only_transit_data_28062023.csv")
+print(f"Reading from {filename}...")
 datafile = pd.read_csv(filename, skiprows=202)
 
 b = 0
 masses_our_work = [0] * 1745
-logD_dataframe = pd.read_csv("logD.csv")
+logD_filename = Path(__file__).with_name("logD.csv")
+print(f"Reading from {logD_filename}...")
+logD_dataframe = pd.read_csv(logD_filename)
 logD_series = logD_dataframe.squeeze()
 logD = logD_series.values.tolist()
 while b != 1000:
@@ -31,19 +37,15 @@ while b != 1000:
     #our work - mass tilde
     mu_tilde = []
     for i in range(len(logD)):
-        mu_log = (3*(logD[i] - logK[i])) + np.log10(3)
+        mu_log = log_mu_tilde_from_log_K(logD[i], logK[i])
         mu_data = 10**mu_log
         mu_tilde.append(mu_data)
     mu_tilde_data = pd.Series(mu_tilde)
     mu_tilde_log = np.log10(mu_tilde_data)
     mu_tilde_log = mu_tilde_log.dropna()
 
-    planet_list = []
-    for i in range(len(logD)):
-        planet_min_mu = gamma[i] * (1+gamma[i])**(-1) * mu_tilde[i]
-        planet_max_mu = (1+gamma[i])**(-1) * mu_tilde[i]
-        planet_list.append(planet_min_mu)
-        planet_list.append(planet_max_mu)
+    minimum_fractions, maximum_fractions = pair_mass_fractions(gamma)
+    planet_list = np.column_stack((minimum_fractions, maximum_fractions)).ravel().tolist()
     planet_list.append(np.mean(planet_list))
     planet_list_log = np.log10(planet_list)
     planet_list_log = pd.Series(planet_list_log)
@@ -51,7 +53,7 @@ while b != 1000:
 
     planet_mass = []
     for i in range(len(datafile)-1):
-        mass = (planet_list[i]*datafile["st_mass"][i]*const.M_sun.value)/const.M_earth.value
+        mass = (planet_list[i]*datafile["st_mass"][i]*const.M_sun.value)/const.M_earth.value  # [M_earth]
         planet_mass.append(mass)
     masses_our_work = [sum(x) for x in zip(masses_our_work, planet_mass)]
     b += 1
@@ -67,7 +69,7 @@ final_masses = final_masses.dropna()
 e_mu_data = []
 e_mass_data = []
 for i in range(len(datafile) - 1):
-    mass = datafile["pl_bmasse"][i]
+    mass = datafile["pl_bmasse"][i]  # [M_earth]
     e_mu = (datafile["pl_bmasse"][i]) / (datafile["st_mass"][i])
     e_mu_data.append(e_mu)
     e_mass_data.append(mass)
