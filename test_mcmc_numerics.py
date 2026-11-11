@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 from scipy.special import expit, log_expit
 from scipy import stats
+from tdpy.verbosity import print
 
 
 SCRIPT_FILES = [
